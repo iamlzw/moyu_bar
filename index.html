@@ -276,6 +276,11 @@ const freshStats = () => ({date:today(), drinks:[], abv:0, toasts:0, tipsy:0, cu
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ---------- state ----------
+let uid = load('moyu_uid');
+if (typeof uid !== 'string' || !/^[a-zA-Z0-9_-]{8,48}$/.test(uid)) {
+  uid = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 24);
+  store('moyu_uid', uid);
+}
 let me = load('moyu_me');
 const firstVisit = !(me && Number.isInteger(me.a) && me.a < LISTS.adj.length && me.n < LISTS.animal.length && me.c < COLORS.length);
 if (firstVisit) me = {a:rnd(LISTS.adj.length), n:rnd(LISTS.animal.length), c:rnd(COLORS.length)};
@@ -364,6 +369,11 @@ function layoutRoom(){
 }
 function updatePresence(){
   const p = $('presence');
+  if (net.replaced) {
+    p.innerHTML = '已在其他网页打开 · <button class="chip" id="reclaimBtn" type="button" style="padding:2px 8px;font-size:11px">切回此页</button>';
+    $('reclaimBtn').onclick = () => { net.replaced = false; if (snd.A.on) snd.unmute(); net.connect(); };
+    return;
+  }
   if (!room.connected) { p.textContent = '今晚只有你一个人'; return; }
   p.innerHTML = `此刻在场 <b>${room.online}</b> 人 · 本桌 <b>${room.guests.size}</b> · 干杯 <b>${room.toasts}</b> · 请客 <b>${room.rounds}</b> 轮`;
 }
@@ -494,16 +504,26 @@ function receiveRound(fromId, d){
 }
 
 // ---------- network ----------
-const net = { ws: null, retry: 2000, timer: 0, enabled: /^https?:$/.test(location.protocol) && !!location.host };
+const net = { ws: null, retry: 2000, timer: 0, replaced: false, enabled: /^https?:$/.test(location.protocol) && !!location.host };
 net.send = function(o){ if (room.connected && net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify(o)); };
 net.connect = function(){
   if (!net.enabled) return;
+  clearTimeout(net.timer); net.replaced = false;
   let ws;
-  try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'); } catch(e) { return net.later(); }
+  try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?uid=' + encodeURIComponent(uid)); } catch(e) { return net.later(); }
   net.ws = ws;
   ws.onopen = () => { net.retry = 2000; ws.send(JSON.stringify({t:'hello', a:me.a, n:me.n, c:me.c, d:S.cur, l:S.cur < 0 ? 0 : remaining()})); };
   ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch(e) { return; } handle(m); };
-  ws.onclose = () => { if (net.ws !== ws) return; net.ws = null; if (room.connected) soloRoom(); net.later(); };
+  ws.onclose = ev => {
+    if (net.ws !== ws) return; net.ws = null;
+    if (ev && ev.code === 4001) {
+      net.replaced = true; if (snd.A.on) snd.mute();
+      if (room.connected) soloRoom(); else updatePresence();
+      say('你在另一个网页进了酒馆，这个页面先待机。', 6000);
+      return;
+    }
+    if (room.connected) soloRoom(); net.later();
+  };
   ws.onerror = () => {};
 };
 net.later = function(){ clearTimeout(net.timer); net.timer = setTimeout(net.connect, net.retry); net.retry = Math.min(60000, net.retry * 2); };

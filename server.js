@@ -146,16 +146,18 @@ function validate(msg) {
 const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD, perMessageDeflate: false });
 
 server.on('upgrade', (req, socket, head) => {
-  const url = (req.url || '').split('?')[0];
+  const [url, qs] = (req.url || '').split('?');
   let ip = req.socket.remoteAddress || '?';
   if (TRUST_PROXY && req.headers['x-forwarded-for']) ip = String(req.headers['x-forwarded-for']).split(',')[0].trim();
   if (url !== '/ws' || online >= MAX_CLIENTS || (ipCount.get(ip) || 0) >= MAX_PER_IP) {
     socket.write('HTTP/1.1 ' + (url !== '/ws' ? '404 Not Found' : '429 Too Many Requests') + '\r\nConnection: close\r\n\r\n');
     socket.destroy(); return;
   }
+  const rawUid = qs ? new URLSearchParams(qs).get('uid') : '';
+  const cid = /^[a-zA-Z0-9_-]{8,48}$/.test(rawUid || '') ? rawUid : null;
   ipCount.set(ip, (ipCount.get(ip) || 0) + 1);
   socket.once('close', () => { const n = (ipCount.get(ip) || 1) - 1; if (n <= 0) ipCount.delete(ip); else ipCount.set(ip, n); });
-  wss.handleUpgrade(req, socket, head, ws => { ws.ip = ip; wss.emit('connection', ws); });
+  wss.handleUpgrade(req, socket, head, ws => { ws.ip = ip; ws.cid = cid; wss.emit('connection', ws); });
 });
 
 wss.on('connection', ws => {
@@ -177,6 +179,21 @@ wss.on('connection', ws => {
     if (!g) {
       if (msg.t !== 'hello') return ws.terminate();
       clearTimeout(helloTimer);
+      let existing = null;
+      if (ws.cid) {
+        for (const o of wss.clients) if (o !== ws && o.guest && o.cid === ws.cid && o.room) { existing = o; break; }
+      }
+      if (existing) {
+        const r = existing.room, guest = existing.guest;
+        roomDay(r);
+        guest.ws = ws; guest.a = msg.a; guest.n = msg.n; guest.c = msg.c; guest.d = msg.d; guest.l = msg.d < 0 ? 0 : msg.l;
+        ws.guest = guest; ws.room = r;
+        existing.guest = null; existing.room = null;
+        try { existing.close(4001, 'replaced'); } catch (e) {}
+        send(ws, { t: 'welcome', id: guest.id, room: r.id, roster: [...r.guests.values()].map(pub), toasts: r.toasts, rounds: r.rounds, online: Math.max(1, online - 1), song: r.song, perf: perfPub(r) });
+        broadcast(r, { t: 'upd', id: guest.id, a: guest.a, n: guest.n, d: guest.d, l: guest.l }, ws);
+        return;
+      }
       const r = pickRoom();
       const guest = { id: nextGuestId++, a: msg.a, n: msg.n, c: msg.c, s: freeSeat(r), d: msg.d, l: msg.d < 0 ? 0 : msg.l, g: -1, ws, roundAt: 0, seatAt: 0, diceAt: 0, singAt: 0 };
       r.guests.set(guest.id, guest); ws.guest = guest; ws.room = r;
