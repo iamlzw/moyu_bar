@@ -1,0 +1,933 @@
+<title>摸鱼酒馆</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one full-viewport night scene; HUD chips pinned to top and bottom edges; long bar of guests scrolls sideways inside the scene. */
+:root{
+  --night:#150e13; --wall:#2c1a20; --wall-lo:#1b1015; --panel-wood:#24161a;
+  --wood:#5b3322; --wood-hi:#8f5836; --wood-lo:#2f190f;
+  --amber:#f5b860; --brass:#d9a441; --ink:#f4e8d6; --muted:#bfa78c;
+  --chip:rgba(20,12,15,.66); --hair:rgba(244,232,214,.18); --focus:#ffd27a;
+  --panel:rgba(30,20,24,.96); --panel-ink:#f4e8d6; --panel-muted:#bfa78c; --panel-line:rgba(244,232,214,.16); --panel-hi:rgba(244,232,214,.08);
+  --bubble:#fbf3e6; --bubble-ink:#2a1b14; --me:#ffcf6e;
+  --xl-bg:#ffffff; --xl-chrome:#f6f7f8; --xl-head:#eef0f2; --xl-grid:#dfe2e6; --xl-ink:#1f2328; --xl-muted:#5f6670; --xl-accent:#217346; --xl-selbg:#e8f2ec;
+  --font-ui:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","Source Han Sans SC",system-ui,sans-serif;
+  --font-display:"Songti SC","STSong","Noto Serif CJK SC","Source Han Serif SC","SimSun",serif;
+  --font-mono:ui-monospace,"SF Mono",Menlo,Consolas,"Noto Sans Mono CJK SC",monospace;
+  --ch:34%;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--panel:#f6ecdb;--panel-ink:#2b1d15;--panel-muted:#7a6250;--panel-line:rgba(43,29,21,.16);--panel-hi:rgba(43,29,21,.06);color-scheme:light}}
+:root[data-theme="light"]{--panel:#f6ecdb;--panel-ink:#2b1d15;--panel-muted:#7a6250;--panel-line:rgba(43,29,21,.16);--panel-hi:rgba(43,29,21,.06);color-scheme:light}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--night);color:var(--ink);font-family:var(--font-ui);overflow:hidden;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#app{position:relative;height:100%;overflow:hidden}
+.scene{position:absolute;inset:0;overflow:hidden;background:var(--wall)}
+#world{position:absolute;inset:0;transform-origin:50% 85%}
+#world.t1{filter:blur(.35px) saturate(1.08);animation:sway 9s ease-in-out infinite}
+#world.t2{filter:blur(.8px) saturate(1.15);animation:sway 6s ease-in-out infinite}
+@keyframes sway{0%,100%{transform:rotate(0) translateX(0)}30%{transform:rotate(.5deg) translateX(4px)}70%{transform:rotate(-.5deg) translateX(-4px)}}
+.backdrop{position:absolute;inset:0;width:100%;height:100%;display:block}
+.flick{animation:flick 7s infinite}
+.flick.b{animation-duration:11s;animation-delay:-3s}
+@keyframes flick{0%,100%{opacity:.62}8%{opacity:.5}9%{opacity:.66}40%{opacity:.6}41%{opacity:.46}42%{opacity:.63}75%{opacity:.58}}
+.drop{animation:rain .8s linear infinite}
+@keyframes rain{from{transform:translate(6px,-140px)}to{transform:translate(-8px,140px)}}
+#polish{transform-origin:556px 300px;animation:polish 3.2s ease-in-out infinite}
+@keyframes polish{0%,100%{transform:rotate(0)}50%{transform:rotate(-5deg)}}
+#bell{transform-origin:625px 0;transform-box:view-box}
+#bell.ring{animation:ring 1.8s ease-out}
+@keyframes ring{0%{transform:rotate(0)}10%{transform:rotate(14deg)}25%{transform:rotate(-11deg)}40%{transform:rotate(8deg)}55%{transform:rotate(-5deg)}70%{transform:rotate(3deg)}100%{transform:rotate(0)}}
+.counter{position:absolute;left:0;right:0;bottom:0;height:var(--ch);background:linear-gradient(var(--wood-hi),var(--wood) 5%,var(--wood-lo));box-shadow:0 -14px 30px rgba(0,0,0,.45)}
+.counter::before{content:"";position:absolute;left:0;right:0;top:0;height:9px;background:linear-gradient(var(--amber),var(--wood-hi));opacity:.55}
+/* room of guests */
+.room{position:absolute;left:0;right:0;bottom:calc(var(--ch) - 6px);height:118px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;scrollbar-color:var(--hair) transparent;z-index:3}
+.row{display:flex;align-items:flex-end;height:100%;width:max-content;margin:0 auto;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));gap:4px}
+.seat{--sz:52px;position:relative;width:calc(var(--sz) + 16px);height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;flex:none}
+.room.dense .seat{--sz:40px}
+.tag{font-size:10px;line-height:1.3;color:var(--ink);background:var(--chip);border-radius:6px;padding:1px 5px;max-width:calc(var(--sz) + 30px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.seat.me .tag{background:var(--me);color:var(--bubble-ink);font-weight:600}
+.ava{width:var(--sz);height:var(--sz);transition:transform .5s ease;transform-origin:50% 100%}
+.ava svg{width:100%;height:100%;display:block}
+.seat.me .ava{filter:drop-shadow(0 0 5px var(--me))}
+.seat.host .ava{animation:host 1.2s ease-in-out 4}
+@keyframes host{50%{filter:drop-shadow(0 0 12px var(--brass)) brightness(1.2)}}
+.mg{position:absolute;bottom:2px;right:1px;width:11px;height:16px;border:1.5px solid rgba(244,232,214,.7);border-top:0;border-radius:0 0 3px 3px;overflow:hidden;transition:transform .4s ease;transform-origin:50% 100%}
+.mg i{position:absolute;left:0;right:0;bottom:0;background:var(--amber);transition:height .4s}
+.seat.g0 .mg{transform:translateY(-16px) rotate(-14deg)}
+.seat.g1 .ava{animation:hop .5s ease 2}
+.seat.g2 .ava{animation:sigh 1.6s ease}
+.seat.slump .ava{transform:translateY(30%) rotate(-10deg) scaleY(.8)}
+@keyframes hop{50%{transform:translateY(-8px)}}
+@keyframes sigh{40%{transform:translateY(5px) scale(1.05,.9)}}
+.gb{position:absolute;bottom:calc(var(--sz) + 18px);left:50%;transform:translateX(-50%);background:var(--bubble);color:var(--bubble-ink);font-size:12px;font-weight:700;border-radius:9px;padding:2px 7px;white-space:nowrap;animation:pop .2s ease}
+.rip{position:absolute;bottom:20px;left:50%;width:40px;height:40px;margin-left:-20px;border:2px solid var(--amber);border-radius:50%;animation:rip .9s ease-out forwards;pointer-events:none}
+@keyframes rip{from{transform:scale(.3);opacity:.9}to{transform:scale(2.4);opacity:0}}
+@keyframes pop{from{transform:translateX(-50%) scale(.6);opacity:0}}
+/* bartender bubble, banner */
+.bubble{position:absolute;z-index:6;left:50%;top:max(84px,13%);transform:translateX(-50%);background:var(--bubble);color:var(--bubble-ink);border-radius:14px;padding:8px 14px;font-size:15px;line-height:1.5;width:max-content;max-width:min(380px,calc(100% - 32px));box-shadow:0 6px 20px rgba(0,0,0,.35);animation:pop .22s ease}
+.bubble b{font-size:11px;color:var(--wood);display:block;letter-spacing:.08em}
+.bubble::after{content:"";position:absolute;left:50%;bottom:-7px;margin-left:-7px;border:7px solid transparent;border-bottom:0;border-top-color:var(--bubble)}
+.banner{position:absolute;z-index:7;left:50%;top:max(132px,24%);transform:translateX(-50%);background:var(--brass);color:var(--bubble-ink);font-family:var(--font-display);font-weight:700;font-size:16px;padding:8px 16px;border-radius:8px;width:max-content;max-width:calc(100% - 32px);text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.4);animation:pop .25s ease}
+/* own glass */
+.glass-wrap{position:absolute;z-index:5;left:50%;bottom:calc(112px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;align-items:flex-end;gap:10px}
+#glass{background:none;border:0;padding:0;width:clamp(76px,12vh,124px);border-radius:12px}
+#glass svg{width:100%;display:block}
+#glass.sip{animation:tilt .35s ease}
+@keyframes tilt{50%{transform:rotate(-9deg) translateY(-6px)}}
+#glass.lift{animation:lift .9s ease}
+@keyframes lift{40%{transform:translateY(-18px) rotate(6deg)}}
+.shaker{position:absolute;left:50%;bottom:calc(100% + 6px);width:46px;margin-left:-23px}
+.shaker.go{animation:shake .15s ease-in-out 8}
+@keyframes shake{0%,100%{transform:rotate(-14deg) translateY(0)}50%{transform:rotate(14deg) translateY(-10px)}}
+#shot{position:relative;background:none;border:0;padding:0;width:34px;animation:slide .6s ease}
+#shot svg{width:100%;display:block}
+#shot .n{position:absolute;top:-8px;right:-10px;background:var(--brass);color:var(--bubble-ink);font-size:11px;font-weight:700;border-radius:9px;padding:0 5px}
+@keyframes slide{from{transform:translateX(80px);opacity:0}}
+/* HUD */
+.hud{position:absolute;left:0;right:0;z-index:10;display:flex;gap:8px;align-items:center;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.hud.top{top:0;padding-block:10px;justify-content:space-between;flex-wrap:wrap}
+.hud.bottom{bottom:0;padding-block:8px calc(10px + env(safe-area-inset-bottom,0px));flex-direction:column;gap:6px}
+.grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:center}
+.chip{background:var(--chip);border:1px solid var(--hair);border-radius:999px;padding:6px 12px;font-size:13px;line-height:1.2;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+button.chip:hover{border-color:var(--amber)}
+.chip.on{border-color:var(--amber);color:var(--amber)}
+.act{padding:8px 14px;font-size:14px}
+.act kbd{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-left:4px}
+.gest{padding:5px 11px;font-size:13px}
+.meter{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.meter .bar{width:72px;height:6px;border-radius:3px;background:var(--hair);overflow:hidden}
+.meter .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--amber),#e86a5a);transition:width .6s}
+.meter b{color:var(--ink);font-variant-numeric:tabular-nums;min-width:2ch}
+.presence{font-size:12px;color:var(--muted)}
+.presence b{color:var(--ink)}
+.sign{font-family:var(--font-display);font-size:15px;letter-spacing:.12em;color:var(--amber)}
+#bossCorner{position:absolute;z-index:11;left:max(6px,env(safe-area-inset-left,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));width:30px;height:30px;padding:0;border-radius:8px;opacity:.55;display:grid;place-items:center}
+/* modals */
+.modal{position:fixed;inset:0;z-index:50;display:grid;grid-template-columns:minmax(0,1fr);place-items:center;background:rgba(8,5,7,.62);padding-block:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.sheet{background:var(--panel);color:var(--panel-ink);border-radius:14px;width:min(600px,100%);max-height:calc(100vh - 48px);overflow:auto;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:12px}
+.sheet h2{margin:0;font-family:var(--font-display);font-size:22px;letter-spacing:.06em;text-wrap:balance}
+.sheet p{margin:0;color:var(--panel-muted);font-size:13px;line-height:1.6}
+.sheet .x{margin-left:auto;background:none;border:1px solid var(--panel-line);border-radius:8px;padding:4px 10px}
+.hd{display:flex;align-items:center;gap:10px}
+.menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.item{display:flex;gap:10px;align-items:center;text-align:left;background:var(--panel-hi);border:1px solid var(--panel-line);border-radius:10px;padding:9px 10px}
+.item:hover:not(:disabled){border-color:var(--brass)}
+.item:disabled{opacity:.45;cursor:not-allowed}
+.sw{flex:none;width:22px;height:34px;border-radius:2px 2px 6px 6px;border:1.5px solid var(--panel-line)}
+.item .nm{font-weight:700;font-size:14px}
+.item .ds{font-size:12px;color:var(--panel-muted)}
+.item .abv{margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--panel-muted);white-space:nowrap}
+.btn{background:var(--brass);color:var(--bubble-ink);border:0;border-radius:9px;padding:9px 16px;font-weight:700}
+.btn.ghost{background:none;color:var(--panel-ink);border:1px solid var(--panel-line)}
+.bigname{font-family:var(--font-display);font-size:28px;font-weight:700;text-align:center;padding-block:8px}
+.rowb{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel-hi);border:1px solid var(--brass);border-radius:10px;padding:10px}
+.confirm span{flex:1 1 200px;font-size:14px}
+.slider{display:grid;grid-template-columns:4.5em 1fr;gap:10px;align-items:center;font-size:13px}
+.slider input{width:100%;accent-color:var(--brass)}
+#receiptImg{display:block;width:min(340px,100%);margin:0 auto;border-radius:4px}
+.tipopt{flex-basis:100%;font-size:12px;color:var(--panel-muted);display:flex;gap:6px;align-items:center}
+.tipimg{display:block;width:min(240px,100%);margin:0 auto;border-radius:8px;background:#fff}
+.tiplink{position:absolute;z-index:11;right:max(8px,env(safe-area-inset-right,0px));bottom:calc(var(--ch) + 8px);background:none;border:0;padding:2px 4px;font-size:11px;color:var(--muted);text-decoration:underline;opacity:.7}
+.tiny{font-size:11px;color:var(--panel-muted);text-align:center}
+/* fake spreadsheet */
+#boss{position:fixed;inset:0;z-index:100;background:var(--xl-bg);color:var(--xl-ink);display:flex;flex-direction:column;font:13px/1.3 system-ui,"Microsoft YaHei","PingFang SC",sans-serif;color-scheme:light}
+.xl-title{background:var(--xl-accent);color:var(--xl-bg);padding:6px 12px;font-size:12px;display:flex;gap:16px}
+.xl-menu{display:flex;gap:18px;padding:6px 12px;background:var(--xl-chrome);border-bottom:1px solid var(--xl-grid);overflow-x:auto;white-space:nowrap;font-size:12px}
+.xl-menu span:nth-child(2){color:var(--xl-accent);font-weight:600;border-bottom:2px solid var(--xl-accent)}
+.xl-tools{display:flex;gap:12px;padding:6px 12px;background:var(--xl-chrome);border-bottom:1px solid var(--xl-grid);color:var(--xl-muted);font-size:12px;overflow-x:auto;white-space:nowrap}
+.xl-fx{display:flex;border-bottom:1px solid var(--xl-grid);font-size:12px}
+.xl-fx .nb{width:72px;padding:4px 8px;border-right:1px solid var(--xl-grid)}
+.xl-fx .fx{padding:4px 8px;color:var(--xl-muted);border-right:1px solid var(--xl-grid);font-style:italic}
+.xl-fx .fv{padding:4px 8px;flex:1;min-width:0;white-space:nowrap;overflow:hidden}
+.xl-grid{flex:1;overflow:auto;min-height:0}
+.xl-grid table{color:var(--xl-ink);border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.xl-grid th{position:sticky;top:0;background:var(--xl-head);color:var(--xl-muted);font-weight:400;border:1px solid var(--xl-grid);padding:2px 6px;min-width:76px;z-index:1}
+.xl-grid th.rn,.xl-grid td.rn{position:sticky;left:0;min-width:34px;width:34px;text-align:center;background:var(--xl-head);color:var(--xl-muted);z-index:2}
+.xl-grid th.rn{z-index:3}
+.xl-grid td{border:1px solid var(--xl-grid);padding:2px 6px;height:20px;white-space:nowrap;cursor:cell}
+.xl-grid td.n{text-align:right}
+.xl-grid tr.h td{font-weight:700;background:var(--xl-chrome)}
+.xl-grid tr.sub td{font-weight:600;background:var(--xl-selbg)}
+.xl-grid td.sel{outline:2px solid var(--xl-accent);outline-offset:-2px}
+.xl-tabs{display:flex;gap:2px;padding:0 8px;background:var(--xl-chrome);border-top:1px solid var(--xl-grid);font-size:12px;overflow-x:auto}
+.xl-tabs span{padding:5px 14px;color:var(--xl-muted)}
+.xl-tabs span.on{background:var(--xl-bg);color:var(--xl-accent);font-weight:600;border-bottom:2px solid var(--xl-accent)}
+.xl-status{display:flex;gap:18px;justify-content:flex-end;padding:3px 12px calc(3px + env(safe-area-inset-bottom,0px));background:var(--xl-chrome);border-top:1px solid var(--xl-grid);color:var(--xl-muted);font-size:11px;font-variant-numeric:tabular-nums}
+.xl-status span:first-child{margin-right:auto}
+@media (max-width:600px){:root{--ch:40%}.glass-wrap{bottom:calc(104px + env(safe-area-inset-bottom,0px))}.act{padding:7px 11px;font-size:13px}.act kbd{display:none}.sign{display:none}}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}#world.t1,#world.t2{animation:none}}
+</style>
+
+<div id="app">
+  <div class="scene">
+    <div id="world">
+      <svg class="backdrop" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="gWall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#301c23"/><stop offset="1" stop-color="#1c1116"/></linearGradient>
+          <radialGradient id="gLamp"><stop offset="0" stop-color="#ffd38a" stop-opacity=".9"/><stop offset=".35" stop-color="#f5b860" stop-opacity=".35"/><stop offset="1" stop-color="#f5b860" stop-opacity="0"/></radialGradient>
+          <linearGradient id="gSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1220"/><stop offset="1" stop-color="#1c2638"/></linearGradient>
+          <linearGradient id="gBrass" x1="0" x2="1"><stop offset="0" stop-color="#8a6420"/><stop offset=".5" stop-color="#f1cb6b"/><stop offset="1" stop-color="#9a7026"/></linearGradient>
+          <clipPath id="cWin"><rect x="414" y="54" width="172" height="112"/></clipPath>
+          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <rect width="1000" height="600" fill="url(#gWall)"/>
+        <rect y="350" width="1000" height="250" fill="#1d1116"/>
+        <g stroke="#2a1a1f" stroke-width="3" id="panels"></g>
+        <!-- window with rain -->
+        <rect x="406" y="46" width="188" height="128" rx="4" fill="#3a2418"/>
+        <rect x="414" y="54" width="172" height="112" fill="url(#gSky)"/>
+        <g clip-path="url(#cWin)">
+          <g fill="#f5c46a" opacity=".55"><rect x="424" y="136" width="10" height="30"/><rect x="438" y="122" width="14" height="44"/><rect x="456" y="140" width="8" height="26"/><rect x="520" y="128" width="16" height="38"/><rect x="540" y="146" width="10" height="20"/><rect x="560" y="118" width="18" height="48"/></g>
+          <g fill="#8fb4e0" opacity=".35"><rect x="470" y="132" width="12" height="34"/><rect x="496" y="142" width="14" height="24"/></g>
+          <g id="rain" stroke="#a9c3e6" stroke-width="1.2" stroke-linecap="round" opacity=".55"></g>
+        </g>
+        <path d="M500 54V166M414 110H586" stroke="#3a2418" stroke-width="5"/>
+        <!-- neon sign -->
+        <g filter="url(#glow)" class="flick b"><rect x="118" y="96" width="176" height="86" rx="14" fill="none" stroke="#ff8fb1" stroke-width="3"/>
+          <text x="206" y="150" text-anchor="middle" font-size="40" font-family="Songti SC,STSong,Noto Serif CJK SC,serif" fill="#ffc2d4" letter-spacing="6">摸鱼</text></g>
+        <text x="206" y="210" text-anchor="middle" font-size="14" fill="#bfa78c" letter-spacing="4">营业到你下班</text>
+        <!-- clock stuck at 17:59 -->
+        <circle cx="812" cy="132" r="48" fill="#e9dcc4" stroke="#5b3322" stroke-width="6"/>
+        <g stroke="#2a1b14" stroke-linecap="round"><line x1="812" y1="132" x2="782" y2="117" stroke-width="5"/><line x1="812" y1="132" x2="808" y2="92" stroke-width="3"/></g>
+        <circle cx="812" cy="132" r="4" fill="#2a1b14"/>
+        <text x="812" y="204" text-anchor="middle" font-size="13" fill="#bfa78c" letter-spacing="2">永远差一分钟下班</text>
+        <!-- shelves -->
+        <rect x="290" y="186" width="420" height="160" fill="#1a0f13" stroke="#3a2418" stroke-width="4"/>
+        <g id="bottles"></g>
+        <rect x="286" y="260" width="428" height="9" fill="#7a4a2e"/><rect x="286" y="338" width="428" height="9" fill="#7a4a2e"/>
+        <!-- lamps -->
+        <circle cx="340" cy="230" r="170" fill="url(#gLamp)" class="flick"/>
+        <circle cx="670" cy="230" r="170" fill="url(#gLamp)" class="flick b"/>
+        <g stroke="#120a0d" stroke-width="2"><line x1="340" y1="0" x2="340" y2="176"/><line x1="670" y1="0" x2="670" y2="176"/></g>
+        <path d="M318 176h44l14 30h-72z M648 176h44l14 30h-72z" fill="#3b4a3a"/>
+        <ellipse cx="340" cy="207" rx="20" ry="5" fill="#ffe1a6"/><ellipse cx="670" cy="207" rx="20" ry="5" fill="#ffe1a6"/>
+        <!-- brass bell -->
+        <g id="bell"><line x1="625" y1="0" x2="625" y2="92" stroke="#120a0d" stroke-width="2"/>
+          <path d="M607 124c0-20 6-32 18-32s18 12 18 32l5 6h-46z" fill="url(#gBrass)" stroke="#6b4b14" stroke-width="1.5"/>
+          <circle cx="625" cy="134" r="4" fill="#8a6420"/></g>
+        <!-- bartender 老陈 -->
+        <g id="chen">
+          <path d="M424 430 L436 300 Q444 266 500 260 Q556 266 564 300 L576 430Z" fill="#2c2f3d"/>
+          <path d="M478 262 L500 330 L522 262Z" fill="#efe6da"/>
+          <path d="M488 270 L500 277 L488 284Z M512 270 L500 277 L512 284Z" fill="#b8423a"/>
+          <rect x="489" y="244" width="22" height="22" rx="6" fill="#d9a77d"/>
+          <circle cx="469" cy="226" r="7" fill="#d9a77d"/><circle cx="531" cy="226" r="7" fill="#d9a77d"/>
+          <circle cx="500" cy="222" r="32" fill="#e8b98f"/>
+          <path d="M468 218 Q470 186 500 186 Q530 186 532 218 Q526 200 500 200 Q474 200 468 218Z" fill="#4a4342"/>
+          <path d="M468 214 Q466 204 472 198 M532 214 Q534 204 528 198" stroke="#9a9290" stroke-width="5" fill="none"/>
+          <g fill="none" stroke="#2a1b14" stroke-width="2"><circle cx="487" cy="224" r="8"/><circle cx="513" cy="224" r="8"/><path d="M495 224h10"/></g>
+          <g fill="#2a1b14"><circle cx="487" cy="225" r="2"/><circle cx="513" cy="225" r="2"/></g>
+          <path d="M488 240 Q500 234 512 240 Q506 246 500 242 Q494 246 488 240Z" fill="#5a4a46"/>
+          <g id="polish"><path d="M556 300 Q570 330 548 352" stroke="#efe6da" stroke-width="16" stroke-linecap="round" fill="none"/>
+            <path d="M530 330 l26 0 -4 30 -18 0z" fill="#cfe3ef" opacity=".7" stroke="#fff" stroke-width="1"/>
+            <path d="M524 344 q14 -10 34 4 l-4 18 q-14 -8 -28 0z" fill="#e9dcc4"/></g>
+          <path d="M444 300 Q430 350 452 400" stroke="#efe6da" stroke-width="16" stroke-linecap="round" fill="none"/>
+        </g>
+      </svg>
+      <div class="counter"></div>
+      <div class="room" id="room" aria-label="在场的客人"><div class="row" id="row"></div></div>
+    </div>
+    <div class="bubble" id="chenBubble" role="status" aria-live="polite" hidden><b>老陈</b><span></span></div>
+    <div class="banner" id="banner" role="status" hidden></div>
+    <div class="glass-wrap">
+      <svg class="shaker" id="shaker" viewBox="0 0 40 80" hidden aria-hidden="true"><rect x="12" y="2" width="16" height="10" rx="3" fill="#cfd6dc"/><path d="M8 14h24l-3 62H11z" fill="#b9c2ca" stroke="#e8eef2" stroke-width="1.5"/><rect x="8" y="12" width="24" height="5" fill="#8e98a1"/></svg>
+      <button id="glass" type="button" aria-label="喝一口（空格）">
+        <svg viewBox="0 0 100 130" aria-hidden="true">
+          <defs><clipPath id="cIn"><path d="M20 22 L80 22 L74 118 Q50 124 26 118Z"/></clipPath><clipPath id="cLvl"><rect id="lvlRect" x="0" y="118" width="100" height="0"/></clipPath></defs>
+          <ellipse cx="50" cy="124" rx="34" ry="5" fill="#000" opacity=".35"/>
+          <g clip-path="url(#cIn)"><g clip-path="url(#cLvl)" id="liquid"></g></g>
+          <path d="M16 16 L84 16 L76 120 Q50 128 24 120Z" fill="rgba(220,235,245,.12)" stroke="rgba(240,248,255,.75)" stroke-width="2.5"/>
+          <path d="M26 26 L23 100" stroke="#fff" stroke-width="3" opacity=".35" stroke-linecap="round"/>
+          <g id="garnish"></g>
+        </svg>
+      </button>
+      <button id="shot" type="button" hidden aria-label="一口闷掉免费的酒"><svg viewBox="0 0 40 50" aria-hidden="true"><path d="M6 6h28l-4 40H10z" fill="rgba(220,235,245,.15)" stroke="rgba(240,248,255,.8)" stroke-width="2"/><path id="shotFill" d="M8 18h24l-2.8 26H10.8z" fill="#f5b860"/></svg><span class="n" id="shotN">1</span></button>
+    </div>
+  </div>
+
+  <div class="hud top">
+    <div class="grp">
+      <span class="sign">摸鱼酒馆</span>
+      <button class="chip" id="nickBtn" type="button" aria-label="我的昵称，点击换一个"></button>
+      <span class="presence" id="presence">正在推门……</span>
+    </div>
+    <div class="grp">
+      <div class="meter" title="微醺值"><span>微醺</span><span class="bar"><i id="meterBar"></i></span><b id="meterNum">0</b></div>
+      <button class="chip" id="soundBtn" type="button">声音 关</button>
+      <button class="chip" id="bossBtn" type="button" title="Esc">老板来了</button>
+    </div>
+  </div>
+
+  <button class="chip" id="bossCorner" type="button" aria-label="老板键：双击切换" title="双击：老板键"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M1 1h12v12H1zM1 5h12M1 9h12M5 1v12M9 1v12" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
+
+  <button class="tiplink" id="tipLink" type="button" hidden>顺便请老板喝一杯</button>
+
+  <div class="hud bottom">
+    <div class="grp" role="group" aria-label="动作">
+      <button class="chip gest" type="button" data-g="0">举杯</button>
+      <button class="chip gest" type="button" data-g="1">干杯</button>
+      <button class="chip gest" type="button" data-g="2">叹气</button>
+      <button class="chip gest" type="button" data-g="3">趴桌</button>
+    </div>
+    <div class="grp">
+      <button class="chip act" id="menuBtn" type="button">点酒<kbd>Enter</kbd></button>
+      <button class="chip act" id="sipBtn" type="button">喝一口<kbd>Space</kbd></button>
+      <button class="chip act" id="roundBtn" type="button">请全场一轮</button>
+      <button class="chip act" id="billBtn" type="button">结账</button>
+    </div>
+  </div>
+
+  <div class="modal" id="enterModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="enterH">
+    <h2 id="enterH">推门进来了</h2>
+    <p>今晚你在这儿的名字是：</p>
+    <div class="bigname" id="enterName"></div>
+    <div class="rowb"><button class="btn ghost" id="enterRoll" type="button">换一个</button><button class="btn" id="enterGo" type="button">进门</button></div>
+    <p class="tiny">这里不能聊天，只能举杯、干杯、叹气、趴桌。空格喝酒，回车点酒，Esc 是老板键（手机上双击左边那个小格子）。</p>
+  </div></div>
+
+  <div class="modal" id="menuModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="menuH">
+    <div class="hd"><h2 id="menuH">打工人特调</h2><button class="x" type="button" data-close>关上</button></div>
+    <p id="menuNote">老陈手写的酒单。度数仅供参考，跟你的绩效一样。</p>
+    <div class="confirm" id="roundConfirm" hidden><span id="roundQ"></span><button class="btn ghost" type="button" id="roundNo">再想想</button><button class="btn" type="button" id="roundYes">确认请客</button>
+      <label class="tipopt" id="tipOpt" hidden><input type="checkbox" id="tipChk"> 顺便请老板喝一杯</label></div>
+    <div class="menu" id="menuList"></div>
+  </div></div>
+
+  <div class="modal" id="soundModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="soundH">
+    <div class="hd"><h2 id="soundH">环境音</h2><button class="x" type="button" data-close>关上</button></div>
+    <div class="rowb"><button class="btn" id="soundToggle" type="button">打开声音</button></div>
+    <div class="slider"><label for="v_master">总音量</label><input id="v_master" type="range" min="0" max="1" step="0.01"></div>
+    <div class="slider"><label for="v_murmur">人声</label><input id="v_murmur" type="range" min="0" max="1" step="0.01"></div>
+    <div class="slider"><label for="v_rain">雨声</label><input id="v_rain" type="range" min="0" max="1" step="0.01"></div>
+    <div class="slider"><label for="v_clinks">碰杯</label><input id="v_clinks" type="range" min="0" max="1" step="0.01"></div>
+    <div class="slider"><label for="v_pad">背景乐</label><input id="v_pad" type="range" min="0" max="1" step="0.01"></div>
+    <p class="tiny">声音全是现场合成的，没有录音，也不联网。</p>
+  </div></div>
+
+  <div class="modal" id="nickModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="nickH">
+    <div class="hd"><h2 id="nickH">换个名字</h2><button class="x" type="button" data-close>关上</button></div>
+    <div class="bigname" id="nickName"></div>
+    <p>名字只能从老陈的名单里抽，不能自己写。</p>
+    <div class="rowb"><button class="btn ghost" id="nickRoll" type="button">换一个</button><button class="btn" type="button" data-close>就这个</button></div>
+  </div></div>
+
+  <div class="modal" id="tipModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="tipH">
+    <div class="hd"><h2 id="tipH">请老板喝一杯</h2><button class="x" type="button" data-close>关上</button></div>
+    <img id="tipImg" alt="老板的收款码" class="tipimg">
+    <p class="tiny">自愿，不请也照样喝。请了也不会多给你一杯。</p>
+  </div></div>
+
+  <div class="modal" id="billModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="billH">
+    <div class="hd"><h2 id="billH">小票</h2><button class="x" type="button" data-close>关上</button></div>
+    <img id="receiptImg" alt="今晚的小票">
+    <div class="rowb"><button class="btn" id="saveBtn" type="button">保存图片</button></div>
+    <p class="tiny" id="saveNote">没反应的话，长按或右键图片保存。</p>
+  </div></div>
+</div>
+
+<div id="boss" hidden>
+  <div class="xl-title"><span>Q4数据汇总.xlsx</span><span>已保存到本地</span></div>
+  <div class="xl-menu"><span>文件</span><span>开始</span><span>插入</span><span>页面布局</span><span>公式</span><span>数据</span><span>审阅</span><span>视图</span></div>
+  <div class="xl-tools"><span>粘贴</span><span>等线 ▾</span><span>11 ▾</span><span><b>B</b> <i>I</i> <u>U</u></span><span>≡ ≡ ≡</span><span>合并居中</span><span>常规 ▾</span><span>% ,</span><span>条件格式</span><span>求和 ▾</span><span>排序和筛选</span></div>
+  <div class="xl-fx"><span class="nb" id="xlName">A1</span><span class="fx">fx</span><span class="fv" id="xlVal"></span></div>
+  <div class="xl-grid" id="xlGrid" tabindex="0"></div>
+  <div class="xl-tabs"><span class="on">汇总</span><span>华东</span><span>华南</span><span>华北</span><span>原始数据</span><span>+</span></div>
+  <div class="xl-status"><span>就绪</span><span id="xlStat"></span><span>100%</span></div>
+</div>
+
+<script>
+'use strict';
+const LISTS = {"adj":["加班的","摸鱼的","带薪的","已读的","掉线的","开会的","画饼的","躺平的","打卡的","秃头的","周报写不完的","背锅的","对齐中的","早退未遂的","被@的","续命的","佛系的","等审批的"],"animal":["水豚","柯基","树懒","考拉","仓鼠","鸽子","猫头鹰","海獭","羊驼","企鹅","浣熊","河马","柴犬","刺猬","鹦鹉","熊猫"]};
+const EAR = [0,2,8,1,0,4,5,0,3,4,2,0,2,6,7,1];
+const COLORS = ['#e9a46a','#c7d36f','#8ec5d6','#d79bd0','#f2d06b','#a8b8f0','#e88f8f','#9fd8b0'];
+const GNAME = ['举杯','干杯','叹气','趴桌'], GTXT = ['敬！','叮！','唉……','zzZ'];
+const SIPS = 5;
+const DRINKS = [
+  {n:'需求再改一版',ds:'第一版和第八版一模一样',abv:18,c:['#7a1f2b','#c4502f','#e8a24a','#f3d9a0'],gar:'cherry',l:['这杯我按你最初的配方调的。哦不，最初的最初。','放心，改到第八版还是这个味。']},
+  {n:'周一综合征',ds:'苦，提神，不想醒',abv:28,c:['#1d2a44','#3a5578','#7d98b8'],l:['这杯苦一点，跟周一早上一样。','喝完别看日历。']},
+  {n:'对齐颗粒度',ds:'四层等厚，强迫症友好',abv:12,c:['#5b3f8c','#8a64b8','#b99ad6','#e5d6f2'],l:['颗粒度我帮你对齐了，每层一样厚。','细节拉满，味道一般。']},
+  {n:'已读不回',ds:'颜色很深，没有回音',abv:33,c:['#141018','#2b1d2e','#3d2a40'],l:['调好了。我就不说话了。','……（已读）']},
+  {n:'带薪发呆',ds:'低度，喝得越慢越划算',abv:5,c:['#9cc9a3','#cfe8c8'],gar:'mint',l:['度数很低，适合盯着屏幕放空。','这杯喝得越慢越赚。']},
+  {n:'再美化一下',ds:'颜色对了，味道再说',abv:15,c:['#e05a8a','#f39a6b','#f7d26a','#8fd3e8'],l:['颜色我调了三版，最后还是第一版。','这杯主要靠颜值撑着。']},
+  {n:'拉通闭环',ds:'从哪开始，就在哪结束',abv:20,c:['#c9822e','#e9b44c','#c9822e'],l:['从哪开始喝，就在哪结束。闭环了。','这杯有始有终，比你们项目强。']},
+  {n:'明天上线',ds:'四十度，给你点发布的勇气',abv:40,c:['#8a2e14','#d0661f','#f1a43a'],l:['四十度，喝完就敢点发布了。','出了问题别找我，我只负责调。']},
+  {n:'年终奖待定',ds:'看着很满，大部分是冰',abv:3,c:['#dfe9ef','#f4f8fa'],gar:'ice',l:['看着挺满，大部分是冰。','这杯的度数，最终解释权归公司所有。']},
+  {n:'下班前五分钟',ds:'一天里最好喝的五分钟',abv:16,c:['#d9763a','#f0b65a','#ffe3a3'],gar:'orange',l:['最好喝的永远是这五分钟。','喝快点，要不又来个需求。']}
+];
+const CHEN = ['慢慢喝，工位跑不了。','今天的事，明天的你会处理的。','这里没有已读回执。','酒是真的，KPI 是假的。','别看手机了，消息不会自己变少。','我这儿不开会。','你这表情，像刚被拉进一个新群。','坐吧，这个位置不用打卡。','喝完这杯，回去假装很忙。','老规矩，不问你几点下班。','酒管够，饼不供应。','说吧，今天又对齐了几次？','有人说这杯能抵一次周会。','不用给我反馈，我不迭代。','你的绩效我不评。','窗外下雨，正好不想回去。','我当年也写过日报，后来改行调酒了。','喝一口，深呼吸，别回那封邮件。','工资不涨，冰块管够。','这杯不用走审批。','摸鱼不可耻，被发现才可耻。','你说什么我都回「收到」。','今天辛苦了，虽然你可能啥也没干。','别急，老板也在摸鱼。','这杯挂在明天的你账上。'];
+const CHEN_EMPTY = ['空了。再来一杯，还是回去干活？','杯底都见了，比你们的需求文档清楚。','喝完了。回车，酒单在这儿。'];
+const CHEN_FULL = '先喝完这杯，别学你们需求方，一杯没完又加一杯。';
+const CHEN_NOGLASS = '杯子是空的，喝空气不算摸鱼。按回车点一杯。';
+const CHEN_G = [['敬谁呢？敬这个点还没下班的你。','举得挺标准，像年会。'],['叮。这声比钉钉响好听。','碰杯不用抄送。'],['叹气也算一种汇报。','唉，我懂。'],['趴会儿吧，我替你盯着门口。','趴桌不扣工时。']];
+const CHEN_SOLO_ROUND = '全场就你一个，这轮你自己请自己。账我记着，不报销。';
+const CHEN_BACK = ['走了？刚才那表格做得挺像样。','安全了，接着喝。','老板走了，酒还在。'];
+const VERDICT = [[10,'清醒得像刚开完晨会。明天见。'],[30,'刚好够回去面对那封邮件。'],[55,'状态不错，适合在周报里写「持续推进」。'],[80,'今天先这样，剩下的交给明天的你。'],[101,'别回工位了，打车回家。我跟老板说你在对齐。']];
+
+const $ = id => document.getElementById(id);
+const rnd = n => Math.floor(Math.random() * n);
+const pick = a => a[rnd(a.length)];
+const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+function load(k){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch(e){ return null; } }
+function store(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+const nickStr = (a,n) => LISTS.adj[a] + LISTS.animal[n];
+const freshStats = () => ({date:today(), drinks:[], abv:0, toasts:0, tipsy:0, cur:-1, sips:0, shots:[], rounds:0, treated:0});
+
+// ---------- state ----------
+let me = load('moyu_me');
+const firstVisit = !(me && Number.isInteger(me.a) && me.a < LISTS.adj.length && me.n < LISTS.animal.length && me.c < COLORS.length);
+if (firstVisit) me = {a:rnd(LISTS.adj.length), n:rnd(LISTS.animal.length), c:rnd(COLORS.length)};
+let S = load('moyu_stats');
+if (!S || S.date !== today()) S = freshStats();
+S = Object.assign(freshStats(), S);
+if (!(S.cur >= -1 && S.cur < DRINKS.length)) { S.cur = -1; S.sips = 0; }
+S.shots = (S.shots || []).filter(d => d >= 0 && d < DRINKS.length).slice(0, 9);
+const save = () => store('moyu_stats', S);
+const remaining = () => S.cur < 0 ? 0 : Math.max(0, SIPS - S.sips);
+let busy = false, boss = false, level = remaining() / SIPS;
+
+// ---------- scene decorations ----------
+(function decorate(){
+  let h = '';
+  for (let x = 20; x < 1000; x += 60) h += `<line x1="${x}" y1="360" x2="${x}" y2="600"/>`;
+  $('panels').innerHTML = h;
+  const bc = ['#3d6b4f','#7a2d2d','#c08a3e','#4d5f8a','#a9b8a0','#6b3f6e','#d1b36a','#2f4d3c'];
+  let b = '';
+  [[260,40],[338,44]].forEach(([base, maxH]) => {
+    for (let x = 300; x < 700;) {
+      const w = 12 + rnd(8), hh = 26 + rnd(maxH - 20), col = pick(bc), nw = Math.max(4, w / 3);
+      b += `<rect x="${x}" y="${base-hh}" width="${w}" height="${hh}" rx="3" fill="${col}" opacity=".9"/><rect x="${x+(w-nw)/2}" y="${base-hh-12}" width="${nw}" height="13" fill="${col}"/><rect x="${x+2}" y="${base-hh*0.6}" width="${w-4}" height="${hh*0.28}" fill="#e9dcc4" opacity=".55"/>`;
+      x += w + 4 + rnd(10);
+    }
+  });
+  $('bottles').innerHTML = b;
+  let r = '';
+  for (let i = 0; i < 34; i++) { const x = 416 + rnd(170), y = 56 + rnd(110); r += `<line class="drop" x1="${x}" y1="${y}" x2="${x-2}" y2="${y+9}" style="animation-delay:-${(Math.random()*.8).toFixed(2)}s;animation-duration:${(.6+Math.random()*.5).toFixed(2)}s"/>`; }
+  for (let i = 0; i < 14; i++) r += `<circle cx="${418+rnd(166)}" cy="${58+rnd(106)}" r="${1+Math.random()*1.4}" fill="#cfe0f5" stroke="none" opacity=".6"/>`;
+  $('rain').innerHTML = r;
+})();
+
+// ---------- bartender speech ----------
+let chenT = 0;
+function say(text, ms){
+  const b = $('chenBubble'); b.querySelector('span').textContent = text; b.hidden = false;
+  b.style.animation = 'none'; void b.offsetWidth; b.style.animation = '';
+  clearTimeout(chenT); chenT = setTimeout(() => { b.hidden = true; }, ms || 5200);
+}
+let bannerT = 0;
+function banner(text){ const b = $('banner'); b.textContent = text; b.hidden = false; clearTimeout(bannerT); bannerT = setTimeout(() => { b.hidden = true; }, 4500); }
+
+// ---------- own glass ----------
+function drawGlass(){
+  const liq = $('liquid'), gar = $('garnish');
+  if (S.cur < 0) { liq.innerHTML = ''; gar.innerHTML = ''; return; }
+  const d = DRINKS[S.cur], top = 22, H = 98, n = d.c.length, lh = H / n;
+  let h = '';
+  d.c.forEach((col, i) => { h += `<rect x="0" y="${(top + H - lh*(i+1)).toFixed(1)}" width="100" height="${(lh+0.6).toFixed(1)}" fill="${col}"/>`; });
+  if (d.gar === 'ice') h += '<g fill="#fff" opacity=".55"><rect x="30" y="40" width="18" height="18" rx="3" transform="rotate(12 39 49)"/><rect x="52" y="58" width="18" height="18" rx="3" transform="rotate(-8 61 67)"/><rect x="36" y="78" width="16" height="16" rx="3"/></g>';
+  liq.innerHTML = h;
+  gar.innerHTML = d.gar === 'cherry' ? '<path d="M66 14 q4 -10 12 -12" stroke="#5b3322" stroke-width="2" fill="none"/><circle cx="64" cy="16" r="6" fill="#c0283a"/>'
+    : d.gar === 'mint' ? '<path d="M60 18 q10 -14 22 -10 q-6 12 -22 10z" fill="#4f9a5a"/>'
+    : d.gar === 'orange' ? '<circle cx="78" cy="18" r="11" fill="#f0a23a" stroke="#ffd27a" stroke-width="2"/><path d="M78 7v22M67 18h22" stroke="#ffd27a" stroke-width="1"/>' : '';
+}
+function setLevel(v){ const H = 98; level = v; const r = $('lvlRect'); r.setAttribute('y', (120 - H*v).toFixed(2)); r.setAttribute('height', (H*v + 2).toFixed(2)); }
+function tween(from, to, ms, done){
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) ms = 1;
+  const t0 = performance.now();
+  (function step(t){ const k = Math.min(1, (t - t0) / ms); setLevel(from + (to - from) * k); if (k < 1) requestAnimationFrame(step); else if (done) done(); })(t0);
+}
+function topColor(d){ const c = DRINKS[d].c; return c[c.length - 1]; }
+function drawShot(){
+  const b = $('shot');
+  if (!S.shots.length) { b.hidden = true; return; }
+  const was = b.hidden; b.hidden = false;
+  $('shotFill').setAttribute('fill', DRINKS[S.shots[0]].c[Math.min(1, DRINKS[S.shots[0]].c.length-1)]);
+  $('shotN').textContent = '×' + S.shots.length; $('shotN').hidden = S.shots.length < 2;
+  if (was) { b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; }
+}
+
+// ---------- 微醺 ----------
+function applyTipsy(){
+  S.tipsy = Math.max(0, Math.min(100, S.tipsy));
+  const v = Math.round(S.tipsy);
+  $('meterBar').style.width = v + '%'; $('meterNum').textContent = v;
+  const w = $('world'); w.classList.toggle('t1', v >= 40 && v < 70); w.classList.toggle('t2', v >= 70);
+}
+setInterval(() => { if (S.tipsy > 0) { S.tipsy -= 1; applyTipsy(); save(); } }, 12000);
+
+// ---------- ordering / sipping ----------
+function order(i){
+  closeModals();
+  if (busy) return;
+  if (remaining() > 0) { say(CHEN_FULL); return; }
+  const d = DRINKS[i];
+  busy = true; S.cur = i; S.sips = 0; S.drinks.push(i); S.abv += d.abv; save();
+  net.send({t:'drink', d:i, l:SIPS}); updateSelf();
+  setLevel(0); drawGlass();
+  const sh = $('shaker'); sh.hidden = false; sh.classList.remove('go'); void sh.getBoundingClientRect(); sh.classList.add('go');
+  snd.shake();
+  setTimeout(() => {
+    sh.hidden = true; sh.classList.remove('go'); snd.pour();
+    tween(0, 1, 1600, () => { busy = false; say(Math.random() < .65 ? pick(d.l) : pick(CHEN)); });
+  }, 1250);
+}
+function sip(){
+  if (busy) return;
+  if (remaining() <= 0) { say(CHEN_NOGLASS); return; }
+  const d = DRINKS[S.cur];
+  S.sips++; S.tipsy += d.abv * 0.12 + 0.5; applyTipsy();
+  const g = $('glass'); g.classList.remove('sip'); void g.getBoundingClientRect(); g.classList.add('sip');
+  snd.sip(); busy = true;
+  const left = remaining();
+  tween(level, left / SIPS, 320, () => {
+    busy = false;
+    if (left === 0) { S.cur = -1; S.sips = 0; drawGlass(); say(S.tipsy > 75 ? '你的微醺值已经超过周报的真实度了。' : pick(CHEN_EMPTY)); }
+    save();
+  });
+  net.send(left === 0 ? {t:'drink', d:-1, l:0} : {t:'drink', d:S.cur, l:left}); updateSelf();
+  setSlump(selfSeat(), false);
+}
+function drinkShot(){
+  if (!S.shots.length) return;
+  const d = DRINKS[S.shots.shift()];
+  S.tipsy += d.abv * 0.3 + 2; applyTipsy(); save(); drawShot(); snd.sip();
+  say(pick(['一口闷，有魄力。这杯是别人请的，喝着更香。','白来的酒，度数自动加倍。','闷了？别人请的，不用说谢谢。']));
+}
+
+// ---------- room / guests ----------
+const room = { meId: null, guests: new Map(), online: 1, toasts: 0, rounds: 0, connected: false };
+function avatarSVG(n, c){
+  const col = COLORS[c] || COLORS[0], e = EAR[n] || 0, dk = 'rgba(0,0,0,.18)';
+  let ears = '', after = '';
+  if (e === 0) ears = `<circle cx="19" cy="16" r="4.5" fill="${col}"/><circle cx="41" cy="16" r="4.5" fill="${col}"/>`;
+  if (e === 1) ears = `<circle cx="16" cy="16" r="7.5" fill="${col}"/><circle cx="44" cy="16" r="7.5" fill="${col}"/><circle cx="16" cy="16" r="3.5" fill="${dk}"/><circle cx="44" cy="16" r="3.5" fill="${dk}"/>`;
+  if (e === 2) ears = `<path d="M15 22 L17 5 L28 14Z M45 22 L43 5 L32 14Z" fill="${col}"/>`;
+  if (e === 3) ears = `<ellipse cx="21" cy="9" rx="3.5" ry="9" fill="${col}"/><ellipse cx="39" cy="9" rx="3.5" ry="9" fill="${col}"/>`;
+  if (e === 4) after = '<path d="M26.5 31 L33.5 31 L30 36Z" fill="#f0a23a"/>';
+  if (e === 5) ears = `<path d="M17 18 L15 7 L25 13Z M43 18 L45 7 L35 13Z" fill="${col}"/>`;
+  if (e === 6) ears = `<path d="M10 26 L14 10 L20 18 L24 6 L30 14 L36 6 L40 18 L46 10 L50 26Z" fill="#6b5446"/>`;
+  if (e === 7) ears = `<path d="M30 13 Q33 1 41 6 Q35 7 32 13Z" fill="#e8513f"/>`;
+  return `<svg viewBox="0 0 60 60" aria-hidden="true">${ears}<ellipse cx="30" cy="52" rx="21" ry="13" fill="${col}"/><ellipse cx="30" cy="52" rx="21" ry="13" fill="${dk}" opacity=".5"/><circle cx="30" cy="28" r="16" fill="${col}"/><ellipse cx="30" cy="33" rx="9" ry="6" fill="#fff" opacity=".28"/><circle cx="24" cy="27" r="2" fill="#2a1b14"/><circle cx="36" cy="27" r="2" fill="#2a1b14"/><ellipse cx="19.5" cy="32" rx="3" ry="2" fill="#ff8f8f" opacity=".55"/><ellipse cx="40.5" cy="32" rx="3" ry="2" fill="#ff8f8f" opacity=".55"/><path d="M28 33 q2 2 4 0" stroke="#2a1b14" stroke-width="1.2" fill="none"/>${after}</svg>`;
+}
+function seatHTML(g){
+  const el = document.createElement('div');
+  el.className = 'seat'; el.dataset.id = g.id;
+  el.innerHTML = '<span class="tag"></span><div class="ava"></div><span class="mg"><i></i></span>';
+  return el;
+}
+function renderGuest(g){
+  if (!g.el) g.el = seatHTML(g);
+  const el = g.el;
+  el.classList.toggle('me', g.id === room.meId);
+  el.querySelector('.tag').textContent = nickStr(g.a, g.n);
+  const key = g.n + ':' + g.c;
+  if (el._k !== key) { el.querySelector('.ava').innerHTML = avatarSVG(g.n, g.c); el._k = key; }
+  const i = el.querySelector('.mg i');
+  i.style.height = (g.d < 0 ? 0 : g.l / SIPS * 100) + '%';
+  if (g.d >= 0) i.style.background = topColor(g.d);
+  el.title = nickStr(g.a, g.n) + (g.d >= 0 ? ' · 在喝〈' + DRINKS[g.d].n + '〉' : '');
+}
+function layoutRoom(){
+  const row = $('row'), list = [...room.guests.values()].sort((x, y) => x.s - y.s);
+  list.forEach(g => { renderGuest(g); row.appendChild(g.el); });
+  [...row.children].forEach(el => { if (!room.guests.has(+el.dataset.id) && !room.guests.has(el.dataset.id)) el.remove(); });
+  $('room').classList.toggle('dense', list.length > 24);
+  updatePresence();
+}
+function updatePresence(){
+  const p = $('presence');
+  if (!room.connected) { p.innerHTML = '今晚只有你一个人'; return; }
+  p.innerHTML = `此刻在场 <b>${room.online}</b> 人 · 本桌 <b>${room.guests.size}</b> · 干杯 <b>${room.toasts}</b> · 请客 <b>${room.rounds}</b> 轮`;
+}
+function selfSeat(){ return room.guests.get(room.meId); }
+function updateSelf(){ const g = selfSeat(); if (!g) return; g.a = me.a; g.n = me.n; g.c = me.c; g.d = S.cur; g.l = remaining(); renderGuest(g); }
+function setSlump(g, on){ if (!g || !g.el) return; g.el.classList.toggle('slump', on); clearTimeout(g.slT); if (on) g.slT = setTimeout(() => g.el.classList.remove('slump'), 20000); }
+function showGesture(g, k){
+  if (!g || !g.el || boss) return;
+  const el = g.el;
+  el.classList.remove('g0','g1','g2'); void el.offsetWidth;
+  setSlump(g, k === 3);
+  if (k < 3) { el.classList.add('g' + k); setTimeout(() => el.classList.remove('g' + k), 1700); }
+  const old = el.querySelector('.gb'); if (old) old.remove();
+  const b = document.createElement('span'); b.className = 'gb'; b.textContent = GTXT[k]; el.appendChild(b);
+  setTimeout(() => b.remove(), k === 3 ? 3000 : 2200);
+  if (k === 1) { const r = document.createElement('span'); r.className = 'rip'; el.appendChild(r); setTimeout(() => r.remove(), 950); snd.clinkThrottled(); }
+}
+function soloRoom(){
+  room.connected = false; room.guests.forEach(g => clearTimeout(g.slT)); room.guests.clear(); room.meId = 'me';
+  room.guests.set('me', {id:'me', a:me.a, n:me.n, c:me.c, s:0, d:S.cur, l:remaining(), g:-1});
+  room.toasts = S.toasts; room.rounds = S.rounds; layoutRoom();
+}
+let lastG = 0;
+function gesture(k){
+  const now = Date.now(); if (now - lastG < 700) return; lastG = now;
+  if (k === 1) { S.toasts++; save(); const gl = $('glass'); gl.classList.remove('lift'); void gl.getBoundingClientRect(); gl.classList.add('lift'); }
+  showGesture(selfSeat(), k);
+  if (room.connected) net.send({t:'g', g:k}); else if (k === 1) { room.toasts = S.toasts; updatePresence(); }
+  if (Math.random() < .45) say(pick(CHEN_G[k]));
+}
+
+// ---------- buying a round ----------
+let pendingRound = -1;
+function confirmRound(i){
+  pendingRound = i; $('tipChk').checked = false; $('roundQ').textContent = '请全场喝一轮〈' + DRINKS[i].n + '〉？每人十分钟只能请一次。';
+  $('roundConfirm').hidden = false; $('roundYes').focus();
+}
+function doRound(){
+  const i = pendingRound, tip = tipOK && $('tipChk').checked; pendingRound = -1; $('roundConfirm').hidden = true; closeModals();
+  if (i < 0) return;
+  if (tip) openModal('tipModal'); // voluntary, changes nothing; the round below goes ahead the same
+  if (room.connected) net.send({t:'round', d:i});
+  else { S.rounds++; room.rounds = S.rounds; receiveRound('me', i); say(CHEN_SOLO_ROUND, 6000); updatePresence(); }
+}
+function receiveRound(fromId, d){
+  const g = room.guests.get(fromId), name = g ? nickStr(g.a, g.n) : '有位客人';
+  S.shots.push(d); if (S.shots.length > 9) S.shots.shift();
+  if (fromId !== room.meId) S.treated++;
+  save(); drawShot();
+  if (boss) return;
+  const bell = $('bell'); bell.classList.remove('ring'); void bell.getBoundingClientRect(); bell.classList.add('ring');
+  snd.bell();
+  banner(name + ' 请全场喝一轮〈' + DRINKS[d].n + '〉');
+  if (g && g.el) { g.el.classList.remove('host'); void g.el.offsetWidth; g.el.classList.add('host'); setTimeout(() => g.el.classList.remove('host'), 5000); }
+  if (fromId !== room.meId && room.connected) setTimeout(() => say('有人请客。桌上那杯小的是你的，点一下闷掉。'), 900);
+}
+
+// ---------- network ----------
+const net = { ws: null, retry: 2000, timer: 0, enabled: /^https?:$/.test(location.protocol) && !!location.host };
+net.send = function(o){ if (room.connected && net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify(o)); };
+net.connect = function(){
+  if (!net.enabled) return;
+  let ws;
+  try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'); } catch(e) { return net.later(); }
+  net.ws = ws;
+  ws.onopen = () => { net.retry = 2000; ws.send(JSON.stringify({t:'hello', a:me.a, n:me.n, c:me.c, d:S.cur, l:S.cur < 0 ? 0 : remaining()})); };
+  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch(e) { return; } handle(m); };
+  ws.onclose = () => { if (net.ws !== ws) return; net.ws = null; if (room.connected) soloRoom(); net.later(); };
+  ws.onerror = () => {};
+};
+net.later = function(){ clearTimeout(net.timer); net.timer = setTimeout(net.connect, net.retry); net.retry = Math.min(60000, net.retry * 2); };
+function handle(m){
+  if (m.t === 'welcome') {
+    room.connected = true; room.meId = m.id; room.online = m.online; room.toasts = m.toasts; room.rounds = m.rounds;
+    room.guests.forEach(g => clearTimeout(g.slT)); room.guests.clear(); $('row').innerHTML = '';
+    m.roster.forEach(p => room.guests.set(p.id, p));
+    layoutRoom();
+    m.roster.forEach(p => { if (p.g === 3) setSlump(p, true); });
+    requestAnimationFrame(() => { const s = selfSeat(); if (s && s.el) { const r = $('room'); r.scrollLeft = s.el.offsetLeft - r.clientWidth / 2 + 30; } });
+  } else if (!room.connected) return;
+  else if (m.t === 'join') { room.guests.set(m.p.id, m.p); layoutRoom(); }
+  else if (m.t === 'leave') { const g = room.guests.get(m.id); if (g) { clearTimeout(g.slT); room.guests.delete(m.id); if (g.el) g.el.remove(); updatePresence(); } }
+  else if (m.t === 'upd') { const g = room.guests.get(m.id); if (g && m.id !== room.meId) { Object.assign(g, {a:m.a ?? g.a, n:m.n ?? g.n, d:m.d ?? g.d, l:m.l ?? g.l}); renderGuest(g); } }
+  else if (m.t === 'g') { room.toasts = m.toasts; updatePresence(); if (m.id !== room.meId) showGesture(room.guests.get(m.id), m.g); }
+  else if (m.t === 'online') { room.online = m.n; updatePresence(); }
+  else if (m.t === 'round') { room.rounds = m.rounds; if (m.from === room.meId) { S.rounds++; save(); say('请客的人最有面子。账记你名下了。'); } receiveRound(m.from, m.drink); updatePresence(); }
+  else if (m.t === 'roundno') { say(m.why === 1 ? `刚有人请过，${m.s} 秒后再来。` : `你刚请过，还得等 ${m.s} 秒。钱包也需要冷静。`); }
+}
+
+// ---------- audio (all synthesized, off by default) ----------
+const snd = (function(){
+  const A = { ac:null, on:false, vol:Object.assign({master:.8, murmur:.5, rain:.55, clinks:.45, pad:.45}, load('moyu_vol') || {}), g:{}, timers:[], lastClink:0 };
+  function noiseBuf(brown){
+    const ac = A.ac, len = ac.sampleRate * 3, b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; if (brown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w; }
+    return b;
+  }
+  function loop(buf){ const s = A.ac.createBufferSource(); s.buffer = buf; s.loop = true; s.start(); return s; }
+  function init(){
+    const ac = A.ac = new (window.AudioContext || window.webkitAudioContext)();
+    A.master = ac.createGain(); A.master.gain.value = A.vol.master; A.master.connect(ac.destination);
+    ['murmur','rain','clinks','pad'].forEach(k => { const g = ac.createGain(); g.gain.value = A.vol[k]; g.connect(A.master); A.g[k] = g; });
+    A.sfx = ac.createGain(); A.sfx.gain.value = .9; A.sfx.connect(A.master);
+    A.white = noiseBuf(false); A.brown = noiseBuf(true);
+    // crowd murmur: brown noise through two moving band-passes
+    const src = loop(A.brown), amp = ac.createGain(); amp.gain.value = .55;
+    [[380,.9,.11,90],[1050,1.6,.17,260]].forEach(([f,q,r,depth]) => {
+      const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
+      const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = r; lg.gain.value = depth; lfo.connect(lg); lg.connect(bp.frequency); lfo.start();
+      src.connect(bp); bp.connect(amp);
+    });
+    const alfo = ac.createOscillator(), ag = ac.createGain(); alfo.frequency.value = .07; ag.gain.value = .2; alfo.connect(ag); ag.connect(amp.gain); alfo.start();
+    amp.connect(A.g.murmur);
+    // rain: high-passed white noise plus a softer roof layer
+    const rs = loop(A.white), hp = ac.createBiquadFilter(), lp = ac.createBiquadFilter(), rg = ac.createGain();
+    hp.type = 'highpass'; hp.frequency.value = 900; lp.type = 'lowpass'; lp.frequency.value = 6500; rg.gain.value = .22;
+    rs.connect(hp); hp.connect(lp); lp.connect(rg); rg.connect(A.g.rain);
+    const rs2 = loop(A.brown), lp2 = ac.createBiquadFilter(), rg2 = ac.createGain(); lp2.type = 'lowpass'; lp2.frequency.value = 500; rg2.gain.value = .5;
+    rs2.connect(lp2); lp2.connect(rg2); rg2.connect(A.g.rain);
+    A.padF = ac.createBiquadFilter(); A.padF.type = 'lowpass'; A.padF.frequency.value = 1100; A.padF.connect(A.g.pad);
+  }
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  const CHORDS = [[50,53,57,60,64],[43,53,57,59,64],[48,52,55,59,62],[45,52,55,58,61]]; // Dm9 G13 Cmaj9 A7b9
+  let ci = 0;
+  function chord(){
+    if (!A.on || boss) return;
+    const ac = A.ac, t = ac.currentTime, notes = CHORDS[ci++ % CHORDS.length], dur = 5.2;
+    notes.forEach((m, j) => {
+      const o = ac.createOscillator(), g = ac.createGain(); o.type = j === 0 ? 'sine' : 'triangle'; o.frequency.value = hz(j === 0 ? m - 12 : m + 12); o.detune.value = (Math.random() - .5) * 8;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(j === 0 ? .16 : .045, t + 1.2); g.gain.linearRampToValueAtTime(0, t + dur + .8);
+      o.connect(g); g.connect(A.padF); o.start(t); o.stop(t + dur + 1);
+    });
+    if (Math.random() < .7) { // a soft keys note
+      const m = pick([62,64,65,67,69,72,74]) + 12, o = ac.createOscillator(), g = ac.createGain(), tt = t + 1 + Math.random() * 3;
+      o.type = 'sine'; o.frequency.value = hz(m); g.gain.setValueAtTime(0, tt); g.gain.linearRampToValueAtTime(.06, tt + .02); g.gain.exponentialRampToValueAtTime(.0001, tt + 2.2);
+      o.connect(g); g.connect(A.padF); o.start(tt); o.stop(tt + 2.3);
+    }
+  }
+  function clinkAt(dest, vol){
+    const ac = A.ac, t = ac.currentTime + .01, base = 2400 + Math.random() * 600;
+    [1, 1.5, 2.1, 2.9].forEach((k, j) => {
+      const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = base * k;
+      g.gain.setValueAtTime(vol / (j + 1), t); g.gain.exponentialRampToValueAtTime(.0001, t + .5 - j * .08);
+      o.connect(g); g.connect(dest); o.start(t); o.stop(t + .6);
+    });
+  }
+  function ambientClink(){
+    A.timers.push(setTimeout(() => { if (A.on && !boss) clinkAt(A.g.clinks, .12 + Math.random() * .1); ambientClink(); }, 5000 + Math.random() * 9000));
+  }
+  function burst(t, f, q, dur, vol, type){
+    const ac = A.ac, s = ac.createBufferSource(), f1 = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = A.white; f1.type = type || 'bandpass'; f1.frequency.value = f; f1.Q.value = q;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    s.connect(f1); f1.connect(g); g.connect(A.sfx); s.start(t, Math.random()); s.stop(t + dur + .05);
+    return f1;
+  }
+  const ok = () => A.on && !boss && A.ac;
+  return {
+    A,
+    async toggle(){
+      if (!A.ac) init();
+      A.on = !A.on;
+      if (A.on) { await A.ac.resume(); A.master.gain.value = A.vol.master; chord(); A.timers.push(setInterval(chord, 5200)); ambientClink(); }
+      else { A.timers.forEach(t => { clearTimeout(t); clearInterval(t); }); A.timers = []; A.ac.suspend(); }
+      return A.on;
+    },
+    setVol(k, v){ A.vol[k] = v; store('moyu_vol', A.vol); if (!A.ac) return; (k === 'master' ? A.master : A.g[k]).gain.value = v; },
+    mute(){ if (!A.ac) return; A.master.gain.cancelScheduledValues(0); A.master.gain.value = 0; A.ac.suspend(); },
+    unmute(){ if (!A.ac || !A.on) return; A.master.gain.value = A.vol.master; A.ac.resume(); },
+    clinkThrottled(){ if (!ok()) return; const n = performance.now(); if (n - A.lastClink < 250) return; A.lastClink = n; clinkAt(A.sfx, .22); },
+    shake(){ if (!ok()) return; const t = A.ac.currentTime; for (let i = 0; i < 8; i++) burst(t + i * .15, 2600 + Math.random() * 800, 1.2, .09, .5); },
+    pour(){ if (!ok()) return; const f = burst(A.ac.currentTime, 600, 2, 1.5, .35); f.frequency.linearRampToValueAtTime(1400, A.ac.currentTime + 1.5); },
+    sip(){ if (!ok()) return; const ac = A.ac, t = ac.currentTime; burst(t, 500, 1, .18, .5, 'lowpass');
+      const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(190, t); o.frequency.exponentialRampToValueAtTime(80, t + .16);
+      g.gain.setValueAtTime(.25, t); g.gain.exponentialRampToValueAtTime(.0001, t + .2); o.connect(g); g.connect(A.sfx); o.start(t); o.stop(t + .25); },
+    bell(){ if (!ok()) return; const ac = A.ac, t = ac.currentTime + .02;
+      [1, 2.0, 2.76, 4.07, 5.4].forEach((k, j) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = 880 * k;
+        g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.25 / (j + 1), t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + 2.6 - j * .3);
+        o.connect(g); g.connect(A.sfx); o.start(t); o.stop(t + 2.7); });
+      setTimeout(() => { if (ok()) clinkAt(A.sfx, .05); }, 420); }
+  };
+})();
+
+// ---------- modals ----------
+let lastFocus = null;
+function openModal(id){ closeModals(true); lastFocus = document.activeElement; const m = $(id); m.hidden = false; const f = m.querySelector('.btn, .item:not(:disabled), button'); if (f) f.focus(); }
+function closeModals(keepFocus){
+  let any = false; document.querySelectorAll('.modal').forEach(m => { if (!m.hidden) { m.hidden = true; any = true; } });
+  $('roundConfirm').hidden = true; pendingRound = -1;
+  if (any && !keepFocus && lastFocus && lastFocus.focus) lastFocus.focus();
+}
+const modalOpen = () => [...document.querySelectorAll('.modal')].some(m => !m.hidden);
+document.querySelectorAll('.modal').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-close]')) { if (m.id === 'enterModal' && e.target === m) return; closeModals(); } });
+});
+let menuMode = 'order';
+function openMenu(mode){
+  menuMode = mode;
+  const full = remaining() > 0;
+  $('menuH').textContent = mode === 'round' ? '请全场喝一轮' : '打工人特调';
+  $('menuNote').textContent = mode === 'round' ? '挑一杯，桌上每人一小杯，不影响他们手里那杯。' : full ? '杯里还有酒。先喝完，再点下一杯。' : '老陈手写的酒单。度数仅供参考，跟你的绩效一样。';
+  $('menuList').innerHTML = DRINKS.map((d, i) => `<button class="item" type="button" data-i="${i}" ${mode === 'order' && full ? 'disabled' : ''}><span class="sw" style="background:linear-gradient(to top,${d.c.join(',')})"></span><span><span class="nm">${d.n}</span><br><span class="ds">${d.ds}</span></span><span class="abv">${d.abv}°</span></button>`).join('');
+  openModal('menuModal');
+}
+$('menuList').addEventListener('click', e => { const b = e.target.closest('.item'); if (!b || b.disabled) return; const i = +b.dataset.i; if (menuMode === 'round') confirmRound(i); else order(i); });
+$('roundYes').addEventListener('click', doRound);
+$('roundNo').addEventListener('click', () => { $('roundConfirm').hidden = true; pendingRound = -1; });
+
+// ---------- nickname ----------
+function showNick(){ $('nickBtn').textContent = nickStr(me.a, me.n); $('enterName').textContent = $('nickName').textContent = nickStr(me.a, me.n); }
+let lastRoll = 0;
+function reroll(){
+  const now = Date.now(); if (now - lastRoll < 400) return; lastRoll = now;
+  me.a = rnd(LISTS.adj.length); me.n = rnd(LISTS.animal.length); me.c = rnd(COLORS.length); store('moyu_me', me); showNick();
+  net.send({t:'nick', a:me.a, n:me.n}); updateSelf();
+}
+$('enterRoll').addEventListener('click', reroll); $('nickRoll').addEventListener('click', reroll);
+$('enterGo').addEventListener('click', () => { store('moyu_me', me); closeModals(); say('欢迎光临，' + nickStr(me.a, me.n) + '。回车看酒单。'); });
+$('nickBtn').addEventListener('click', () => openModal('nickModal'));
+
+// ---------- sound panel ----------
+['master','murmur','rain','clinks','pad'].forEach(k => { const el = $('v_' + k); el.value = snd.A.vol[k]; el.addEventListener('input', () => snd.setVol(k, +el.value)); });
+$('soundBtn').addEventListener('click', () => openModal('soundModal'));
+$('soundToggle').addEventListener('click', async () => {
+  try { const on = await snd.toggle(); $('soundToggle').textContent = on ? '关掉声音' : '打开声音'; $('soundBtn').textContent = on ? '声音 开' : '声音 关'; $('soundBtn').classList.toggle('on', on); }
+  catch(e) { $('soundToggle').textContent = '这个浏览器放不了声音'; }
+});
+
+// ---------- buttons ----------
+$('glass').addEventListener('click', sip);
+$('sipBtn').addEventListener('click', sip);
+$('shot').addEventListener('click', drinkShot);
+$('menuBtn').addEventListener('click', () => openMenu('order'));
+$('roundBtn').addEventListener('click', () => openMenu('round'));
+document.querySelectorAll('.gest').forEach(b => b.addEventListener('click', () => gesture(+b.dataset.g)));
+
+// ---------- boss key ----------
+let savedTitle = document.title;
+function toggleBoss(){
+  boss = !boss;
+  if (boss) {
+    savedTitle = document.title; document.title = 'Q4数据汇总.xlsx';
+    $('tipModal').hidden = true;
+    snd.mute(); $('app').hidden = true; $('boss').hidden = false; $('xlGrid').focus({preventScroll:true});
+  } else {
+    document.title = savedTitle; $('boss').hidden = true; $('app').hidden = false; snd.unmute();
+    if (Math.random() < .5) say(pick(CHEN_BACK));
+  }
+}
+$('bossBtn').addEventListener('click', toggleBoss);
+function doubleTap(el){
+  let last = 0;
+  el.addEventListener('pointerup', () => { const n = performance.now(); if (n - last < 380) { last = 0; toggleBoss(); } else last = n; });
+  el.addEventListener('click', e => { if (e.detail === 0) toggleBoss(); }); // keyboard activation
+}
+doubleTap($('bossCorner'));
+
+document.addEventListener('keydown', e => {
+  const t = e.target, tag = t && t.tagName;
+  if (e.key === 'Escape') { e.preventDefault(); toggleBoss(); return; }
+  if (boss) return;
+  const field = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  if ((e.key === ' ' || e.code === 'Space') && !field && !modalOpen()) { e.preventDefault(); if (!e.repeat || !busy) sip(); return; }
+  if (e.key === 'Enter' && !field && tag !== 'BUTTON' && !modalOpen()) { e.preventDefault(); openMenu('order'); }
+});
+
+// ---------- fake spreadsheet ----------
+(function buildSheet(){
+  let seed = 20261014; const r = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const cols = 'ABCDEFGHIJKLMNOP'.split(''), regions = ['华东','华南','华北','西南','华中','西北','东北'], prods = ['A线','B线','C线'];
+  const rows = [['区域','产品线','Q1','Q2','Q3','Q4','合计','同比','目标','完成率','备注']], kinds = ['h'];
+  const notes = ['','','','待复核','','口径调整','','含退货',''];
+  regions.forEach(rg => {
+    const st = rows.length;
+    prods.forEach(p => {
+      const q = [0,1,2,3].map(() => Math.round(800 + r() * 4200) * 10), sum = q.reduce((a, b) => a + b, 0), tgt = Math.round(sum * (0.9 + r() * .25) / 1000) * 1000;
+      rows.push([rg, p, ...q, sum, ((r() - .35) * 30).toFixed(1) + '%', tgt, (sum / tgt * 100).toFixed(1) + '%', pick(notes)]); kinds.push('');
+    });
+    const sub = [rg + ' 小计', '']; for (let c = 2; c <= 6; c++) sub.push(rows.slice(st).reduce((a, x) => a + x[c], 0));
+    const tg = rows.slice(st).reduce((a, x) => a + x[8], 0);
+    sub.push('', tg, (sub[6] / tg * 100).toFixed(1) + '%', ''); rows.push(sub); kinds.push('sub');
+  });
+  while (rows.length < 48) { rows.push([]); kinds.push(''); }
+  const fmt = v => typeof v === 'number' ? v.toLocaleString('zh-CN') : (v ?? '');
+  let h = '<table><thead><tr><th class="rn" id="xlCorner" title="双击返回"></th>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+  rows.forEach((row, i) => {
+    h += `<tr class="${kinds[i]}"><td class="rn">${i + 1}</td>`;
+    cols.forEach((c, j) => { const v = row[j]; h += `<td data-c="${j}" data-r="${i}" class="${typeof v === 'number' || /%$/.test(v || '') ? 'n' : ''}">${fmt(v)}</td>`; });
+    h += '</tr>';
+  });
+  $('xlGrid').innerHTML = h + '</tbody></table>';
+  const formula = (c, i, v) => {
+    const n = i + 1;
+    if (kinds[i] === 'sub' && c >= 2 && c <= 6) return `=SUBTOTAL(9,${cols[c]}${n - 3}:${cols[c]}${n - 1})`;
+    if (c === 6 && i > 0) return `=SUM(C${n}:F${n})`;
+    if (c === 9 && i > 0) return `=IFERROR(G${n}/I${n},0)`;
+    if (c === 7 && i > 0 && v) return `=G${n}/'2025'!G${n}-1`;
+    return fmt(v);
+  };
+  let sel = null;
+  $('xlGrid').addEventListener('click', e => {
+    const td = e.target.closest('td[data-c]'); if (!td) return;
+    if (sel) sel.classList.remove('sel'); sel = td; td.classList.add('sel');
+    const c = +td.dataset.c, i = +td.dataset.r, v = rows[i][c];
+    $('xlName').textContent = cols[c] + (i + 1); $('xlVal').textContent = formula(c, i, v);
+    $('xlStat').textContent = typeof v === 'number' ? `求和: ${fmt(v)}   计数: 1` : v ? '计数: 1' : '';
+  });
+  $('xlGrid').querySelector('td[data-c="6"][data-r="1"]').click();
+  doubleTap($('xlCorner'));
+})();
+
+// ---------- receipt ----------
+let receiptBlobURL = null, receiptCanvas = null;
+function drawReceipt(){
+  const W = 600, dpr = 2, list = S.drinks.length ? S.drinks : null;
+  const H = 760 + (list ? list.length : 1) * 34;
+  const cv = document.createElement('canvas'); cv.width = W * dpr; cv.height = H * dpr;
+  const x = cv.getContext('2d'); x.scale(dpr, dpr);
+  const F = '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif', M = 'ui-monospace,Menlo,Consolas,monospace';
+  x.fillStyle = '#2a1b14'; x.fillRect(0, 0, W, H);
+  x.fillStyle = '#fbf5e9'; x.beginPath(); x.moveTo(30, 14);
+  for (let i = 30; i <= 570; i += 18) x.lineTo(i + 9, i % 36 === 30 ? 24 : 14);
+  x.lineTo(570, H - 24); for (let i = 570; i >= 30; i -= 18) x.lineTo(i - 9, i % 36 === 30 ? H - 14 : H - 24); x.closePath(); x.fill();
+  const ink = '#2a1b14', soft = '#7a6250';
+  let y = 86;
+  const center = (t, f, c) => { x.font = f; x.fillStyle = c || ink; x.textAlign = 'center'; x.fillText(t, W / 2, y); x.textAlign = 'left'; };
+  const lr = (l, r, bold) => { x.font = (bold ? '700 ' : '') + '22px ' + F; x.fillStyle = ink; x.textAlign = 'left'; x.fillText(l, 66, y); x.textAlign = 'right'; x.fillText(r, W - 66, y); x.textAlign = 'left'; y += 34; };
+  const rule = () => { x.strokeStyle = soft; x.setLineDash([6, 6]); x.beginPath(); x.moveTo(60, y - 16); x.lineTo(W - 60, y - 16); x.stroke(); x.setLineDash([]); y += 14; };
+  center('摸鱼酒馆', '700 46px ' + F); y += 32;
+  center('MOYU BAR · 营业到你下班', '16px ' + M, soft); y += 44;
+  rule();
+  const d = new Date();
+  lr('日期', today() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'));
+  lr('客人', nickStr(me.a, me.n));
+  lr('座位', room.connected ? '吧台 ' + String((selfSeat() || {s:0}).s + 1).padStart(2, '0') + ' 号' : '吧台 包场');
+  rule();
+  if (list) list.forEach(i => lr(DRINKS[i].n, DRINKS[i].abv + '°')); else lr('今晚只喝了白开水', '0°');
+  rule();
+  lr('合计杯数', String(S.drinks.length), true);
+  lr('合计度数', S.abv + '°', true);
+  lr('干杯次数', String(S.toasts));
+  lr('请全场', S.rounds + ' 轮');
+  lr('被请', S.treated + ' 杯');
+  lr('微醺值', Math.round(S.tipsy) + ' / 100');
+  rule();
+  x.font = '18px ' + F; x.fillStyle = soft; x.fillText('老陈说：', 66, y); y += 34;
+  const v = VERDICT.find(([m]) => S.tipsy < m)[1];
+  x.font = '700 24px ' + F; x.fillStyle = ink;
+  let line = ''; for (const ch of '「' + v + '」') { if (x.measureText(line + ch).width > W - 132) { x.fillText(line, 66, y); y += 34; line = ''; } line += ch; }
+  x.fillText(line, 66, y); y += 40;
+  rule();
+  center('本单不报销 · 明天接着摸', '18px ' + F, soft); y += 30;
+  x.fillStyle = ink; let bx = 150; while (bx < 450) { const w = 1 + rnd(4); x.fillRect(bx, y, w, 50); bx += w + 1 + rnd(4); }
+  return cv;
+}
+$('billBtn').addEventListener('click', () => {
+  receiptCanvas = drawReceipt();
+  $('receiptImg').src = receiptCanvas.toDataURL('image/png');
+  $('saveNote').textContent = '没反应的话，长按或右键图片保存。';
+  openModal('billModal');
+  say(pick(['结账？今晚算我的，小票你留着。','小票拿好，回去可以当日报交。']));
+});
+$('saveBtn').addEventListener('click', () => {
+  if (!receiptCanvas) return;
+  receiptCanvas.toBlob(b => {
+    if (!b) return;
+    if (receiptBlobURL) URL.revokeObjectURL(receiptBlobURL);
+    receiptBlobURL = URL.createObjectURL(b);
+    const a = document.createElement('a'); a.href = receiptBlobURL; a.download = '摸鱼酒馆小票-' + today() + '.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    $('saveNote').textContent = '如果没有开始下载，长按或右键上面的图片保存。';
+  }, 'image/png');
+});
+
+// ---------- 请老板喝一杯 (optional tip QR; hidden entirely if the image is absent) ----------
+const TIP_SRC = 'tip.png'; // swap for a data: URI to inline it
+let tipOK = false;
+(function probeTip(){
+  const im = new Image();
+  im.onload = () => { tipOK = true; $('tipImg').src = TIP_SRC; $('tipOpt').hidden = false; $('tipLink').hidden = false; };
+  im.onerror = () => { tipOK = false; };
+  im.src = TIP_SRC;
+})();
+$('tipLink').addEventListener('click', () => { if (tipOK && !boss) openModal('tipModal'); });
+
+// ---------- start ----------
+showNick(); drawGlass(); setLevel(level); drawShot(); applyTipsy(); soloRoom(); save();
+if (firstVisit) openModal('enterModal');
+else setTimeout(() => say('又来了，' + nickStr(me.a, me.n) + '。老位置。'), 500);
+net.connect();
+</script>

@@ -1,0 +1,884 @@
+<title>摸鱼酒馆</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a full-viewport WebGL bar; HUD chips pinned to the top and bottom edges; name labels projected over the scene. */
+:root{
+  --night:#170f15; --amber:#f5b860; --brass:#d9a441; --ink:#f4e8d6; --muted:#c9b297;
+  --chip:rgba(20,12,15,.68); --hair:rgba(244,232,214,.2); --focus:#ffd27a;
+  --panel:rgba(30,20,24,.96); --panel-ink:#f4e8d6; --panel-muted:#bfa78c; --panel-line:rgba(244,232,214,.16); --panel-hi:rgba(244,232,214,.08);
+  --bubble:#fbf3e6; --bubble-ink:#2a1b14; --me:#ffcf6e; --wood:#5b3322;
+  --xl-bg:#ffffff; --xl-chrome:#f6f7f8; --xl-head:#eef0f2; --xl-grid:#dfe2e6; --xl-ink:#1f2328; --xl-muted:#5f6670; --xl-accent:#217346; --xl-selbg:#e8f2ec;
+  --font-ui:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","Source Han Sans SC",system-ui,sans-serif;
+  --font-display:"Songti SC","STSong","Noto Serif CJK SC","Source Han Serif SC","SimSun",serif;
+  --font-mono:ui-monospace,"SF Mono",Menlo,Consolas,"Noto Sans Mono CJK SC",monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--panel:#f6ecdb;--panel-ink:#2b1d15;--panel-muted:#7a6250;--panel-line:rgba(43,29,21,.16);--panel-hi:rgba(43,29,21,.06);color-scheme:light}}
+:root[data-theme="light"]{--panel:#f6ecdb;--panel-ink:#2b1d15;--panel-muted:#7a6250;--panel-line:rgba(43,29,21,.16);--panel-hi:rgba(43,29,21,.06);color-scheme:light}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--night);color:var(--ink);font-family:var(--font-ui);overflow:hidden;-webkit-tap-highlight-color:transparent;margin:0}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#app{position:relative;height:100%;overflow:hidden}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none;cursor:grab}
+#gl.pick{cursor:pointer}
+#gl:active{cursor:grabbing}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:4}
+.lab{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:3px;will-change:transform,opacity;white-space:nowrap}
+.lab .nm{font-size:11px;line-height:1.35;background:var(--chip);color:var(--ink);padding:1px 6px;border-radius:6px}
+.lab.me .nm{background:var(--me);color:var(--bubble-ink);font-weight:700}
+.lab.star .nm{background:var(--brass);color:var(--bubble-ink);font-weight:700}
+.gb{background:var(--bubble);color:var(--bubble-ink);font-size:12px;font-weight:700;border-radius:9px;padding:2px 7px;animation:pop .2s ease}
+.dice{display:flex;gap:3px;background:var(--chip);padding:3px;border-radius:6px;animation:pop .2s ease}
+.die{width:15px;height:15px;background:#fbf3e6;border-radius:3px;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:2px;box-sizing:border-box}
+.die i{width:3px;height:3px;border-radius:50%;background:#2a1b14;place-self:center}
+.die i.o{visibility:hidden}
+@keyframes pop{from{transform:scale(.6);opacity:0}}
+.bubble{position:absolute;z-index:6;left:50%;top:30%;transform:translate(-50%,-100%);background:var(--bubble);color:var(--bubble-ink);border-radius:14px;padding:8px 14px;font-size:15px;line-height:1.5;width:max-content;max-width:min(360px,calc(100vw - 32px));box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.bubble b{font-size:11px;color:var(--wood);display:block;letter-spacing:.08em}
+.bubble::after{content:"";position:absolute;left:50%;bottom:-7px;margin-left:-7px;border:7px solid transparent;border-bottom:0;border-top-color:var(--bubble)}
+.banner{position:absolute;z-index:7;left:50%;top:max(96px,16%);transform:translateX(-50%);background:var(--brass);color:var(--bubble-ink);font-family:var(--font-display);font-weight:700;font-size:16px;padding:8px 16px;border-radius:8px;width:max-content;max-width:calc(100% - 32px);text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.4);animation:bpop .25s ease}
+@keyframes bpop{from{transform:translateX(-50%) scale(.8);opacity:0}}
+.hud{position:absolute;left:0;right:0;z-index:10;display:flex;gap:8px;align-items:center;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));pointer-events:none}
+.hud > *{pointer-events:auto}
+.hud.top{top:0;padding-block:10px;justify-content:space-between;flex-wrap:wrap;background:linear-gradient(rgba(10,6,9,.55),transparent)}
+.hud.bottom{bottom:0;padding-block:18px calc(10px + env(safe-area-inset-bottom,0px));flex-direction:column;gap:6px;background:linear-gradient(transparent,rgba(10,6,9,.6))}
+.grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:center}
+.chip{background:var(--chip);border:1px solid var(--hair);border-radius:999px;padding:6px 12px;font-size:13px;line-height:1.2;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+button.chip:hover{border-color:var(--amber)}
+.chip.on{border-color:var(--amber);color:var(--amber)}
+.chip.hot{background:var(--brass);color:var(--bubble-ink);border-color:var(--brass);font-weight:700}
+.act{padding:8px 13px;font-size:14px}
+.act kbd{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-left:4px}
+.gest{padding:5px 11px;font-size:13px}
+.meter{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.meter .bar{width:72px;height:6px;border-radius:3px;background:var(--hair);overflow:hidden}
+.meter .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--amber),#e86a5a);transition:width .6s}
+.meter b{color:var(--ink);font-variant-numeric:tabular-nums;min-width:2ch}
+.presence{font-size:12px;color:var(--muted)}
+.presence b{color:var(--ink)}
+.sign{font-family:var(--font-display);font-size:15px;letter-spacing:.12em;color:var(--amber)}
+#bossCorner{position:absolute;z-index:11;left:max(6px,env(safe-area-inset-left,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));width:30px;height:30px;padding:0;border-radius:8px;opacity:.55;display:grid;place-items:center}
+.tiplink{position:absolute;z-index:11;right:max(8px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));background:none;border:0;padding:2px 4px;font-size:11px;color:var(--muted);text-decoration:underline;opacity:.7}
+.hint{position:absolute;z-index:5;left:50%;bottom:calc(112px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);font-size:11px;color:var(--muted);opacity:.75;pointer-events:none;white-space:nowrap}
+/* modals */
+.modal{position:fixed;inset:0;z-index:50;display:grid;grid-template-columns:minmax(0,1fr);place-items:center;background:rgba(8,5,7,.55);padding-block:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.sheet{background:var(--panel);color:var(--panel-ink);border-radius:14px;width:min(600px,100%);max-height:calc(100vh - 48px);overflow:auto;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:12px;box-sizing:border-box}
+.sheet h2{margin:0;font-family:var(--font-display);font-size:22px;letter-spacing:.06em;text-wrap:balance}
+.sheet p{margin:0;color:var(--panel-muted);font-size:13px;line-height:1.6}
+.sheet .x{margin-left:auto;background:none;border:1px solid var(--panel-line);border-radius:8px;padding:4px 10px}
+.hd{display:flex;align-items:center;gap:10px}
+.menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.item{display:flex;gap:10px;align-items:center;text-align:left;background:var(--panel-hi);border:1px solid var(--panel-line);border-radius:10px;padding:9px 10px}
+.item:hover:not(:disabled){border-color:var(--brass)}
+.item:disabled{opacity:.45;cursor:not-allowed}
+.item.cur{border-color:var(--brass)}
+.sw{flex:none;width:22px;height:34px;border-radius:2px 2px 6px 6px;border:1.5px solid var(--panel-line)}
+.item .nm{font-weight:700;font-size:14px}
+.item .ds{font-size:12px;color:var(--panel-muted)}
+.item .abv{margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--panel-muted);white-space:nowrap}
+.btn{background:var(--brass);color:var(--bubble-ink);border:0;border-radius:9px;padding:9px 16px;font-weight:700}
+.btn.ghost{background:none;color:var(--panel-ink);border:1px solid var(--panel-line)}
+.bigname{font-family:var(--font-display);font-size:28px;font-weight:700;text-align:center;padding-block:8px}
+.rowb{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel-hi);border:1px solid var(--brass);border-radius:10px;padding:10px}
+.confirm span{flex:1 1 200px;font-size:14px}
+.tipopt{flex-basis:100%;font-size:12px;color:var(--panel-muted);display:flex;gap:6px;align-items:center}
+.tipimg{display:block;width:min(240px,100%);margin:0 auto;border-radius:8px;background:#fff}
+.slider{display:grid;grid-template-columns:4.5em 1fr;gap:10px;align-items:center;font-size:13px}
+.slider input{width:100%;accent-color:var(--brass)}
+#receiptImg{display:block;width:min(340px,100%);margin:0 auto;border-radius:4px}
+.tiny{font-size:11px;color:var(--panel-muted);text-align:center}
+/* fake spreadsheet */
+#boss{position:fixed;inset:0;z-index:100;background:var(--xl-bg);color:var(--xl-ink);display:flex;flex-direction:column;font:13px/1.3 system-ui,"Microsoft YaHei","PingFang SC",sans-serif;color-scheme:light}
+.xl-title{background:var(--xl-accent);color:var(--xl-bg);padding:6px 12px;font-size:12px;display:flex;gap:16px}
+.xl-menu{display:flex;gap:18px;padding:6px 12px;background:var(--xl-chrome);border-bottom:1px solid var(--xl-grid);overflow-x:auto;white-space:nowrap;font-size:12px}
+.xl-menu span:nth-child(2){color:var(--xl-accent);font-weight:600;border-bottom:2px solid var(--xl-accent)}
+.xl-tools{display:flex;gap:12px;padding:6px 12px;background:var(--xl-chrome);border-bottom:1px solid var(--xl-grid);color:var(--xl-muted);font-size:12px;overflow-x:auto;white-space:nowrap}
+.xl-fx{display:flex;border-bottom:1px solid var(--xl-grid);font-size:12px}
+.xl-fx .nb{width:72px;padding:4px 8px;border-right:1px solid var(--xl-grid)}
+.xl-fx .fx{padding:4px 8px;color:var(--xl-muted);border-right:1px solid var(--xl-grid);font-style:italic}
+.xl-fx .fv{padding:4px 8px;flex:1;min-width:0;white-space:nowrap;overflow:hidden}
+.xl-grid{flex:1;overflow:auto;min-height:0}
+.xl-grid table{color:var(--xl-ink);border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.xl-grid th{position:sticky;top:0;background:var(--xl-head);color:var(--xl-muted);font-weight:400;border:1px solid var(--xl-grid);padding:2px 6px;min-width:76px;z-index:1}
+.xl-grid th.rn,.xl-grid td.rn{position:sticky;left:0;min-width:34px;width:34px;text-align:center;background:var(--xl-head);color:var(--xl-muted);z-index:2}
+.xl-grid th.rn{z-index:3}
+.xl-grid td{border:1px solid var(--xl-grid);padding:2px 6px;height:20px;white-space:nowrap;cursor:cell}
+.xl-grid td.n{text-align:right}
+.xl-grid tr.h td{font-weight:700;background:var(--xl-chrome)}
+.xl-grid tr.sub td{font-weight:600;background:var(--xl-selbg)}
+.xl-grid td.sel{outline:2px solid var(--xl-accent);outline-offset:-2px}
+.xl-tabs{display:flex;gap:2px;padding:0 8px;background:var(--xl-chrome);border-top:1px solid var(--xl-grid);font-size:12px;overflow-x:auto}
+.xl-tabs span{padding:5px 14px;color:var(--xl-muted)}
+.xl-tabs span.on{background:var(--xl-bg);color:var(--xl-accent);font-weight:600;border-bottom:2px solid var(--xl-accent)}
+.xl-status{display:flex;gap:18px;justify-content:flex-end;padding:3px 12px calc(3px + env(safe-area-inset-bottom,0px));background:var(--xl-chrome);border-top:1px solid var(--xl-grid);color:var(--xl-muted);font-size:11px;font-variant-numeric:tabular-nums}
+.xl-status span:first-child{margin-right:auto}
+@media (max-width:600px){.act{padding:6px 10px;font-size:13px}.gest{padding:4px 9px;font-size:12px}.act kbd{display:none}.sign{display:none}.hint{display:none}.meter .bar{width:52px}}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+
+<div id="app">
+  <canvas id="gl" tabindex="-1" aria-label="酒馆场景：拖动转视角，滚轮或双指缩放，点自己的杯子喝一口，点空座位换座"></canvas>
+  <div id="labels" aria-hidden="true"></div>
+  <div class="bubble" id="chenBubble" role="status" aria-live="polite" hidden><b>老陈</b><span></span></div>
+  <div class="banner" id="banner" role="status" hidden></div>
+  <div class="hint" id="hint">拖动转视角 · 点空座位换座 · 点杯子喝 · 点骰盅摇骰子</div>
+
+  <div class="hud top">
+    <div class="grp">
+      <span class="sign">摸鱼酒馆</span>
+      <button class="chip" id="nickBtn" type="button" aria-label="我的昵称，点击换一个"></button>
+      <span class="presence" id="presence">正在推门……</span>
+    </div>
+    <div class="grp">
+      <div class="meter" title="微醺值"><span>微醺</span><span class="bar"><i id="meterBar"></i></span><b id="meterNum">0</b></div>
+      <button class="chip" id="soundBtn" type="button">声音 关</button>
+      <button class="chip" id="bossBtn" type="button" title="Esc">老板来了</button>
+    </div>
+  </div>
+
+  <button class="chip" id="bossCorner" type="button" aria-label="老板键：双击切换" title="双击：老板键"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M1 1h12v12H1zM1 5h12M1 9h12M5 1v12M9 1v12" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
+  <button class="tiplink" id="tipLink" type="button" hidden>顺便请老板喝一杯</button>
+
+  <div class="hud bottom">
+    <div class="grp" role="group" aria-label="动作">
+      <button class="chip gest" type="button" data-g="0">举杯</button>
+      <button class="chip gest" type="button" data-g="1">干杯</button>
+      <button class="chip gest" type="button" data-g="2">叹气</button>
+      <button class="chip gest" type="button" data-g="3">趴桌</button>
+      <button class="chip gest" type="button" id="diceBtn">摇骰子</button>
+      <button class="chip gest hot" type="button" id="shotBtn" hidden>闷了这杯</button>
+    </div>
+    <div class="grp">
+      <button class="chip act" id="menuBtn" type="button">点酒<kbd>Enter</kbd></button>
+      <button class="chip act" id="sipBtn" type="button">喝一口<kbd>Space</kbd></button>
+      <button class="chip act" id="roundBtn" type="button">请全场一轮</button>
+      <button class="chip act" id="songBtn" type="button">点歌</button>
+      <button class="chip act" id="singBtn" type="button">上台献唱</button>
+      <button class="chip act" id="billBtn" type="button">结账</button>
+    </div>
+  </div>
+
+  <div class="modal" id="enterModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="enterH">
+    <h2 id="enterH">推门进来了</h2>
+    <p>今晚你在这儿的名字是：</p>
+    <div class="bigname" id="enterName"></div>
+    <div class="rowb"><button class="btn ghost" id="enterRoll" type="button">换一个</button><button class="btn" id="enterGo" type="button">进门</button></div>
+    <p class="tiny">这里不能聊天，只能举杯、干杯、叹气、趴桌、摇骰子。空格喝酒，回车点酒，Esc 是老板键（手机上双击左下角那个小格子）。</p>
+  </div></div>
+
+  <div class="modal" id="menuModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="menuH">
+    <div class="hd"><h2 id="menuH">打工人特调</h2><button class="x" type="button" data-close>关上</button></div>
+    <p id="menuNote">老陈手写的酒单。度数仅供参考，跟你的绩效一样。</p>
+    <div class="confirm" id="roundConfirm" hidden><span id="roundQ"></span><button class="btn ghost" type="button" id="roundNo">再想想</button><button class="btn" type="button" id="roundYes">确认请客</button>
+      <label class="tipopt" id="tipOpt" hidden><input type="checkbox" id="tipChk"> 顺便请老板喝一杯</label></div>
+    <div class="menu" id="menuList"></div>
+  </div></div>
+
+  <div class="modal" id="songModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="songH">
+    <div class="hd"><h2 id="songH">点歌</h2><button class="x" type="button" data-close>关上</button></div>
+    <p id="songNote"></p>
+    <div class="menu" id="songList"></div>
+  </div></div>
+
+  <div class="modal" id="soundModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="soundH">
+    <div class="hd"><h2 id="soundH">环境音</h2><button class="x" type="button" data-close>关上</button></div>
+    <div class="rowb"><button class="btn" id="soundToggle" type="button">打开声音</button></div>
+    <div class="slider"><label for="v_master">总音量</label><input id="v_master" type="range" min="0" max="1" step="0.01"></div>
+    <div class="slider"><label for="v_murmur">人声</label><input id="v_murmur" type="range" min="0" max="1" step="0.01"></div>
+    <div class="slider"><label for="v_rain">雨声</label><input id="v_rain" type="range" min="0" max="1" step="0.01"></div>
+    <div class="slider"><label for="v_clinks">碰杯</label><input id="v_clinks" type="range" min="0" max="1" step="0.01"></div>
+    <div class="slider"><label for="v_pad">乐队</label><input id="v_pad" type="range" min="0" max="1" step="0.01"></div>
+    <p class="tiny">声音全是现场合成的，没有录音。乐队只在声音打开时演奏。</p>
+  </div></div>
+
+  <div class="modal" id="nickModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="nickH">
+    <div class="hd"><h2 id="nickH">换个名字</h2><button class="x" type="button" data-close>关上</button></div>
+    <div class="bigname" id="nickName"></div>
+    <p>名字只能从老陈的名单里抽，不能自己写。</p>
+    <div class="rowb"><button class="btn ghost" id="nickRoll" type="button">换一个</button><button class="btn" type="button" data-close>就这个</button></div>
+  </div></div>
+
+  <div class="modal" id="tipModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="tipH">
+    <div class="hd"><h2 id="tipH">请老板喝一杯</h2><button class="x" type="button" data-close>关上</button></div>
+    <img id="tipImg" alt="老板的收款码" class="tipimg">
+    <p class="tiny">自愿，不请也照样喝。请了也不会多给你一杯。</p>
+  </div></div>
+
+  <div class="modal" id="billModal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="billH">
+    <div class="hd"><h2 id="billH">小票</h2><button class="x" type="button" data-close>关上</button></div>
+    <img id="receiptImg" alt="今晚的小票">
+    <div class="rowb"><button class="btn" id="saveBtn" type="button">保存图片</button></div>
+    <p class="tiny" id="saveNote">没反应的话，长按或右键图片保存。</p>
+  </div></div>
+</div>
+
+<div id="boss" hidden>
+  <div class="xl-title"><span>Q4数据汇总.xlsx</span><span>已保存到本地</span></div>
+  <div class="xl-menu"><span>文件</span><span>开始</span><span>插入</span><span>页面布局</span><span>公式</span><span>数据</span><span>审阅</span><span>视图</span></div>
+  <div class="xl-tools"><span>粘贴</span><span>等线 ▾</span><span>11 ▾</span><span><b>B</b> <i>I</i> <u>U</u></span><span>≡ ≡ ≡</span><span>合并居中</span><span>常规 ▾</span><span>% ,</span><span>条件格式</span><span>求和 ▾</span><span>排序和筛选</span></div>
+  <div class="xl-fx"><span class="nb" id="xlName">A1</span><span class="fx">fx</span><span class="fv" id="xlVal"></span></div>
+  <div class="xl-grid" id="xlGrid" tabindex="0"></div>
+  <div class="xl-tabs"><span class="on">汇总</span><span>华东</span><span>华南</span><span>华北</span><span>原始数据</span><span>+</span></div>
+  <div class="xl-status"><span>就绪</span><span id="xlStat"></span><span>100%</span></div>
+</div>
+
+<script>
+'use strict';
+// No WebGL here: fall back to the 2D bar.
+(function(){ try { const c = document.createElement('canvas'); if (!(c.getContext('webgl2') || c.getContext('webgl'))) throw 0; } catch(e) { location.replace('index2d.html'); } })();
+const LISTS = {"adj":["加班的","摸鱼的","带薪的","已读的","掉线的","开会的","画饼的","躺平的","打卡的","秃头的","周报写不完的","背锅的","对齐中的","早退未遂的","被@的","续命的","佛系的","等审批的"],"animal":["水豚","柯基","树懒","考拉","仓鼠","鸽子","猫头鹰","海獭","羊驼","企鹅","浣熊","河马","柴犬","刺猬","鹦鹉","熊猫"]};
+const COLORS = ['#e9a46a','#c7d36f','#8ec5d6','#d79bd0','#f2d06b','#a8b8f0','#e88f8f','#9fd8b0'];
+const GTXT = ['敬！','叮！','唉……','zzZ'];
+const SIPS = 5;
+const DRINKS = [
+  {n:'需求再改一版',ds:'第一版和第八版一模一样',abv:18,c:['#7a1f2b','#c4502f','#e8a24a','#f3d9a0'],l:['这杯我按你最初的配方调的。哦不，最初的最初。','放心，改到第八版还是这个味。']},
+  {n:'周一综合征',ds:'苦，提神，不想醒',abv:28,c:['#1d2a44','#3a5578','#7d98b8'],l:['这杯苦一点，跟周一早上一样。','喝完别看日历。']},
+  {n:'对齐颗粒度',ds:'四层等厚，强迫症友好',abv:12,c:['#5b3f8c','#8a64b8','#b99ad6','#e5d6f2'],l:['颗粒度我帮你对齐了，每层一样厚。','细节拉满，味道一般。']},
+  {n:'已读不回',ds:'颜色很深，没有回音',abv:33,c:['#141018','#2b1d2e','#3d2a40'],l:['调好了。我就不说话了。','……（已读）']},
+  {n:'带薪发呆',ds:'低度，喝得越慢越划算',abv:5,c:['#9cc9a3','#cfe8c8'],l:['度数很低，适合盯着屏幕放空。','这杯喝得越慢越赚。']},
+  {n:'再美化一下',ds:'颜色对了，味道再说',abv:15,c:['#e05a8a','#f39a6b','#f7d26a','#8fd3e8'],l:['颜色我调了三版，最后还是第一版。','这杯主要靠颜值撑着。']},
+  {n:'拉通闭环',ds:'从哪开始，就在哪结束',abv:20,c:['#c9822e','#e9b44c','#c9822e'],l:['从哪开始喝，就在哪结束。闭环了。','这杯有始有终，比你们项目强。']},
+  {n:'明天上线',ds:'四十度，给你点发布的勇气',abv:40,c:['#8a2e14','#d0661f','#f1a43a'],l:['四十度，喝完就敢点发布了。','出了问题别找我，我只负责调。']},
+  {n:'年终奖待定',ds:'看着很满，大部分是冰',abv:3,c:['#dfe9ef','#f4f8fa'],l:['看着挺满，大部分是冰。','这杯的度数，最终解释权归公司所有。']},
+  {n:'下班前五分钟',ds:'一天里最好喝的五分钟',abv:16,c:['#d9763a','#f0b65a','#ffe3a3'],l:['最好喝的永远是这五分钟。','喝快点，要不又来个需求。']}
+];
+// One table for every song/mood. `src` may later point at a real audio file (served by the server);
+// when it is null the mood is generated live from `gen`.
+const TRACKS = [
+  {name:'慵懒爵士', ds:'《周一综合征》· 刷着手机，脚跟着点', src:'songs/monday.mp3', gen:{ch:[[50,53,57,60,64],[43,53,57,59,64],[48,52,55,59,62],[45,52,55,58,61]], len:5.2, wave:'triangle', cut:1100, vol:.045, keys:.7, nk:1, scale:[62,64,65,67,69,72,74]}},
+  {name:'雨夜钢琴', ds:'适合假装在想方案', src:null, gen:{ch:[[45,52,57,60,64],[41,48,57,60,64],[48,55,60,64,67],[43,50,59,62,67]], len:6, wave:'sine', cut:800, vol:.035, keys:1, nk:4, scale:[69,71,72,74,76,79,81]}},
+  {name:'深夜蓝调', ds:'适合回忆今天的会', src:null, gen:{ch:[[40,50,55,56,62],[45,55,59,61,66],[40,50,55,56,62],[47,57,61,63,68]], len:4.6, wave:'sawtooth', cut:650, vol:.03, keys:.8, nk:2, scale:[64,67,69,70,71,74,76]}},
+  {name:'下班迪斯科', ds:'灯会转，心别飞', src:null, disco:true, gen:{ch:[[41,56,60,63,67],[46,56,61,65,68],[44,55,60,63,67],[43,55,58,62,65]], len:4.28, wave:'square', cut:1500, vol:.022, keys:.6, nk:2, scale:[65,68,70,72,75,77], bpm:112}},
+  {name:'周日失眠', ds:'明天又是周一', src:null, gen:{ch:[[38,57,62,64,69],[43,59,62,66,71]], len:9, wave:'sine', cut:600, vol:.04, keys:.5, nk:1, scale:[74,76,78,81,83]}}
+];
+const CHEN = ['慢慢喝，工位跑不了。','今天的事，明天的你会处理的。','这里没有已读回执。','酒是真的，KPI 是假的。','别看手机了，消息不会自己变少。','我这儿不开会。','你这表情，像刚被拉进一个新群。','坐吧，这个位置不用打卡。','喝完这杯，回去假装很忙。','老规矩，不问你几点下班。','酒管够，饼不供应。','说吧，今天又对齐了几次？','有人说这杯能抵一次周会。','不用给我反馈，我不迭代。','你的绩效我不评。','窗外下雨，正好不想回去。','我当年也写过日报，后来改行调酒了。','喝一口，深呼吸，别回那封邮件。','工资不涨，冰块管够。','这杯不用走审批。','摸鱼不可耻，被发现才可耻。','你说什么我都回「收到」。','今天辛苦了，虽然你可能啥也没干。','别急，老板也在摸鱼。','这杯挂在明天的你账上。'];
+const CHEN_EMPTY = ['空了。再来一杯，还是回去干活？','杯底都见了，比你们的需求文档清楚。','喝完了。回车，酒单在这儿。'];
+const CHEN_FULL = '先喝完这杯，别学你们需求方，一杯没完又加一杯。';
+const CHEN_NOGLASS = '杯子是空的，喝空气不算摸鱼。按回车点一杯。';
+const CHEN_G = [['敬谁呢？敬这个点还没下班的你。','举得挺标准，像年会。'],['叮。这声比钉钉响好听。','碰杯不用抄送。'],['叹气也算一种汇报。','唉，我懂。'],['趴会儿吧，我替你盯着门口。','趴桌不扣工时。']];
+const CHEN_SOLO_ROUND = '全场就你一个，这轮你自己请自己。账我记着，不报销。';
+const CHEN_BACK = ['走了？刚才那表格做得挺像样。','安全了，接着喝。','老板走了，酒还在。'];
+const VERDICT = [[10,'清醒得像刚开完晨会。明天见。'],[30,'刚好够回去面对那封邮件。'],[55,'状态不错，适合在周报里写「持续推进」。'],[80,'今天先这样，剩下的交给明天的你。'],[101,'别回工位了，打车回家。我跟老板说你在对齐。']];
+const SING_MS = 40000;
+
+const $ = id => document.getElementById(id);
+const R = () => window.R3D;
+const rnd = n => Math.floor(Math.random() * n);
+const pick = a => a[rnd(a.length)];
+const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+function load(k){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch(e){ return null; } }
+function store(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+const nickStr = (a,n) => LISTS.adj[a] + LISTS.animal[n];
+const freshStats = () => ({date:today(), drinks:[], abv:0, toasts:0, tipsy:0, cur:-1, sips:0, shots:[], rounds:0, treated:0, sang:0, cheersGot:0});
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------- state ----------
+let me = load('moyu_me');
+const firstVisit = !(me && Number.isInteger(me.a) && me.a < LISTS.adj.length && me.n < LISTS.animal.length && me.c < COLORS.length);
+if (firstVisit) me = {a:rnd(LISTS.adj.length), n:rnd(LISTS.animal.length), c:rnd(COLORS.length)};
+let S = load('moyu_stats');
+if (!S || S.date !== today()) S = freshStats();
+S = Object.assign(freshStats(), S);
+if (!(S.cur >= -1 && S.cur < DRINKS.length)) { S.cur = -1; S.sips = 0; }
+S.shots = (S.shots || []).filter(d => d >= 0 && d < DRINKS.length).slice(0, 9);
+const save = () => store('moyu_stats', S);
+const remaining = () => S.cur < 0 ? 0 : Math.max(0, SIPS - S.sips);
+let busy = false, boss = false, level = remaining() / SIPS;
+
+// ---------- speech / banner ----------
+let chenT = 0;
+function say(text, ms){
+  const b = $('chenBubble'); b.querySelector('span').textContent = text; b.hidden = false;
+  clearTimeout(chenT); chenT = setTimeout(() => { b.hidden = true; }, ms || 5200);
+}
+let bannerT = 0;
+function banner(text, ms){ if (boss) return; const b = $('banner'); b.textContent = text; b.hidden = false; clearTimeout(bannerT); bannerT = setTimeout(() => { b.hidden = true; }, ms || 4500); }
+
+// ---------- own glass ----------
+function setLevel(v){ level = v; }
+function tween(from, to, ms, done){
+  if (reduced) ms = 1;
+  const t0 = performance.now();
+  (function step(t){ const k = Math.min(1, (t - t0) / ms); setLevel(from + (to - from) * k); if (k < 1) requestAnimationFrame(step); else if (done) done(); })(t0);
+}
+function drawShot(){ const b = $('shotBtn'); b.hidden = !S.shots.length; b.textContent = S.shots.length > 1 ? '闷了这杯 ×' + S.shots.length : '闷了这杯'; }
+
+// ---------- 微醺 ----------
+function applyTipsy(){
+  S.tipsy = Math.max(0, Math.min(100, S.tipsy));
+  const v = Math.round(S.tipsy);
+  $('meterBar').style.width = v + '%'; $('meterNum').textContent = v;
+}
+setInterval(() => { if (S.tipsy > 0) { S.tipsy -= 1; applyTipsy(); save(); } }, 12000);
+
+// ---------- ordering / sipping ----------
+function order(i){
+  closeModals();
+  if (busy) return;
+  if (remaining() > 0) { say(CHEN_FULL); return; }
+  const d = DRINKS[i];
+  busy = true; S.cur = i; S.sips = 0; S.drinks.push(i); S.abv += d.abv; save();
+  setLevel(0); net.send({t:'drink', d:i, l:SIPS}); updateSelf();
+  R()?.chenShake(1250); snd.shake();
+  setTimeout(() => { snd.pour(); tween(0, 1, 1600, () => { busy = false; say(Math.random() < .65 ? pick(d.l) : pick(CHEN)); }); }, 1250);
+}
+function sip(){
+  if (busy) return;
+  if (remaining() <= 0) { say(CHEN_NOGLASS); return; }
+  const d = DRINKS[S.cur];
+  S.sips++; S.tipsy += d.abv * 0.12 + 0.5; applyTipsy();
+  const self = selfSeat(); if (self) { self.sipT0 = performance.now(); setSlump(self, false); }
+  snd.sip(); busy = true;
+  const left = remaining();
+  tween(level, left / SIPS, 420, () => {
+    busy = false;
+    if (left === 0) { S.cur = -1; S.sips = 0; updateSelf(); say(S.tipsy > 75 ? '你的微醺值已经超过周报的真实度了。' : pick(CHEN_EMPTY)); }
+    save();
+  });
+  net.send(left === 0 ? {t:'drink', d:-1, l:0} : {t:'drink', d:S.cur, l:left}); updateSelf();
+}
+function drinkShot(){
+  if (!S.shots.length) return;
+  const d = DRINKS[S.shots.shift()];
+  S.tipsy += d.abv * 0.3 + 2; applyTipsy(); save(); drawShot(); snd.sip();
+  const self = selfSeat(); if (self) self.sipT0 = performance.now();
+  say(pick(['一口闷，有魄力。这杯是别人请的，喝着更香。','白来的酒，度数自动加倍。','闷了？别人请的，不用说谢谢。']));
+}
+
+// ---------- room / guests ----------
+const room = { meId: null, guests: new Map(), online: 1, toasts: 0, rounds: 0, connected: false, song: 0, perf: null };
+function ensureLabel(g){
+  if (!g.lab) { g.lab = document.createElement('div'); g.lab.className = 'lab'; g.lab.innerHTML = '<span class="nm"></span>'; $('labels').appendChild(g.lab); }
+  g.lab.classList.toggle('me', g.id === room.meId);
+  g.lab.querySelector('.nm').textContent = nickStr(g.a, g.n);
+}
+function renderGuest(g){ ensureLabel(g); g.dirty = true; }
+function layoutRoom(){
+  room.guests.forEach(renderGuest);
+  [...$('labels').children].forEach(el => { if (![...room.guests.values()].some(g => g.lab === el)) el.remove(); });
+  R()?.sync();
+  updatePresence();
+}
+function updatePresence(){
+  const p = $('presence');
+  if (!room.connected) { p.textContent = '今晚只有你一个人'; return; }
+  p.innerHTML = `此刻在场 <b>${room.online}</b> 人 · 本桌 <b>${room.guests.size}</b> · 干杯 <b>${room.toasts}</b> · 请客 <b>${room.rounds}</b> 轮`;
+}
+function selfSeat(){ return room.guests.get(room.meId); }
+function updateSelf(){ const g = selfSeat(); if (!g) return; g.a = me.a; g.n = me.n; g.c = me.c; g.d = S.cur; g.l = remaining(); renderGuest(g); }
+function setSlump(g, on){ if (g) g.slumpUntil = on ? performance.now() + 20000 : 0; }
+function labelBubble(g, html, ms, cls){
+  if (!g || !g.lab) return;
+  const old = g.lab.querySelector('.gb,.dice'); if (old) old.remove();
+  const b = document.createElement('span'); b.className = cls || 'gb'; b.innerHTML = html; g.lab.insertBefore(b, g.lab.firstChild);
+  setTimeout(() => b.remove(), ms);
+}
+function showGesture(g, k){
+  if (!g || boss) return;
+  setSlump(g, k === 3);
+  if (k < 3) g.anim = {k, t0: performance.now()};
+  labelBubble(g, GTXT[k], k === 3 ? 3000 : 2200);
+  if (k === 1) snd.clinkThrottled();
+  if (room.perf && room.perf.id !== g.id && k <= 1) R()?.cheer(g);
+}
+function soloRoom(){
+  room.connected = false; room.perf = null;
+  room.guests.forEach(g => g.lab && g.lab.remove()); room.guests.clear(); room.meId = 'me';
+  const keep = load('moyu_seat'); const s = Number.isInteger(keep) && keep >= 0 && keep < 100 ? keep : 0;
+  room.guests.set('me', {id:'me', a:me.a, n:me.n, c:me.c, s, d:S.cur, l:remaining(), g:-1});
+  room.toasts = S.toasts; room.rounds = S.rounds; layoutRoom(); applyMusic();
+}
+let lastG = 0;
+function gesture(k){
+  const now = Date.now(); if (now - lastG < 700) return; lastG = now;
+  if (k === 1) { S.toasts++; save(); }
+  showGesture(selfSeat(), k);
+  if (room.connected) net.send({t:'g', g:k}); else if (k === 1) { room.toasts = S.toasts; updatePresence(); }
+  if (Math.random() < .45) say(pick(CHEN_G[k]));
+}
+
+// ---------- dice ----------
+function diceHTML(v){
+  const P = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
+  return v.map(n => '<span class="die">' + Array.from({length:9}, (_, i) => `<i class="${P[n].includes(i) ? '' : 'o'}"></i>`).join('') + '</span>').join('');
+}
+function showDice(g, v){
+  if (!g || boss) return;
+  g.diceT0 = performance.now(); g.dice = v; snd.rattle();
+  setTimeout(() => labelBubble(g, diceHTML(v), 5000, 'dice'), 900);
+}
+let lastDice = 0;
+function rollDice(){
+  const now = Date.now(); if (now - lastDice < 2100) return; lastDice = now;
+  if (room.connected) net.send({t:'dice'});
+  else { const v = Array.from({length:5}, () => 1 + (crypto.getRandomValues(new Uint8Array(1))[0] % 6)); showDice(selfSeat(), v); }
+}
+
+// ---------- seats ----------
+function requestSeat(s){
+  const self = selfSeat(); if (!self || self.s === s) return;
+  if ([...room.guests.values()].some(g => g.s === s)) { say('那个位子有人了。'); return; }
+  if (room.perf && room.perf.id === room.meId) { say('唱完再换座。'); return; }
+  if (room.connected) net.send({t:'seat', s});
+  else { self.s = s; store('moyu_seat', s); renderGuest(self); R()?.sync(); }
+}
+
+// ---------- jukebox / stage ----------
+function effectiveMood(){ return room.perf ? room.perf.m : room.song; }
+function applyMusic(){ const m = effectiveMood(); snd.playTrack(m); R()?.setMood(m); }
+function applySong(id, m){
+  room.song = m; applyMusic();
+  const g = room.guests.get(id);
+  banner((g ? nickStr(g.a, g.n) : '有人') + ' 点了一首〈' + TRACKS[m].name + '〉');
+}
+let songMode = 'song';
+function openSong(mode){
+  songMode = mode;
+  $('songH').textContent = mode === 'sing' ? '上台献唱' : '点歌';
+  $('songNote').textContent = mode === 'sing' ? '挑一首，上台唱四十秒。没有麦克风，只有你的小人在台上晃。乐队会帮你撑场。' : '整桌听同一首。每九十秒只能换一次，换了大家都听得到。';
+  const cur = effectiveMood();
+  $('songList').innerHTML = TRACKS.map((t, i) => `<button class="item${i === cur ? ' cur' : ''}" type="button" data-m="${i}"><span><span class="nm">${t.name}</span><br><span class="ds">${t.ds}</span></span>${i === cur ? '<span class="abv">正在放</span>' : ''}</button>`).join('');
+  openModal('songModal');
+}
+$('songList').addEventListener('click', e => {
+  const b = e.target.closest('.item'); if (!b) return; const m = +b.dataset.m; closeModals();
+  if (songMode === 'sing') {
+    if (room.perf) { say('台上有人，等他唱完。'); return; }
+    if (room.connected) net.send({t:'sing', m}); else startPerf(room.meId, m, SING_MS);
+  } else {
+    if (room.connected) net.send({t:'song', m}); else applySong(room.meId, m);
+  }
+});
+let perfTimer = 0;
+function startPerf(id, m, left){
+  room.perf = {id, m, until: performance.now() + left, cheers: 0};
+  const g = room.guests.get(id);
+  if (g) { g.lab && g.lab.classList.add('star'); }
+  applyMusic(); R()?.perfStart(id);
+  banner((g ? nickStr(g.a, g.n) : '有人') + ' 上台唱了一首〈' + TRACKS[m].name + '〉', 5000);
+  if (!room.connected) { clearTimeout(perfTimer); perfTimer = setTimeout(() => endPerf(id, 0), left); say('台下就我一个观众。唱吧，我不打分。', 6000); }
+}
+function endPerf(id, cheers){
+  const g = room.guests.get(id);
+  room.perf = null; if (g && g.lab) g.lab.classList.remove('star');
+  applyMusic(); R()?.perfEnd(id);
+  if (id === room.meId) { S.sang++; S.cheersGot += cheers; save(); }
+  banner('全场为 ' + (g ? nickStr(g.a, g.n) : '刚才那位') + ' 举杯 ' + cheers + ' 次', 5000);
+}
+
+// ---------- buying a round ----------
+let pendingRound = -1;
+function confirmRound(i){
+  pendingRound = i; $('tipChk').checked = false; $('roundQ').textContent = '请全场喝一轮〈' + DRINKS[i].n + '〉？每人十分钟只能请一次。';
+  $('roundConfirm').hidden = false; $('roundYes').focus();
+}
+function doRound(){
+  const i = pendingRound, tip = tipOK && $('tipChk').checked; pendingRound = -1; $('roundConfirm').hidden = true; closeModals();
+  if (i < 0) return;
+  if (tip) openModal('tipModal'); // voluntary, changes nothing; the round below goes ahead the same
+  if (room.connected) net.send({t:'round', d:i});
+  else { S.rounds++; room.rounds = S.rounds; receiveRound(room.meId, i); say(CHEN_SOLO_ROUND, 6000); updatePresence(); }
+}
+function receiveRound(fromId, d){
+  const g = room.guests.get(fromId), name = g ? nickStr(g.a, g.n) : '有位客人';
+  S.shots.push(d); if (S.shots.length > 9) S.shots.shift();
+  if (fromId !== room.meId) S.treated++;
+  save(); drawShot();
+  if (boss) return;
+  R()?.round(fromId, d); snd.bell();
+  banner(name + ' 请全场喝一轮〈' + DRINKS[d].n + '〉');
+  if (fromId !== room.meId && room.connected) setTimeout(() => say('有人请客。你面前那杯小的，点「闷了这杯」。'), 1400);
+}
+
+// ---------- network ----------
+const net = { ws: null, retry: 2000, timer: 0, enabled: /^https?:$/.test(location.protocol) && !!location.host };
+net.send = function(o){ if (room.connected && net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify(o)); };
+net.connect = function(){
+  if (!net.enabled) return;
+  let ws;
+  try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'); } catch(e) { return net.later(); }
+  net.ws = ws;
+  ws.onopen = () => { net.retry = 2000; ws.send(JSON.stringify({t:'hello', a:me.a, n:me.n, c:me.c, d:S.cur, l:S.cur < 0 ? 0 : remaining()})); };
+  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch(e) { return; } handle(m); };
+  ws.onclose = () => { if (net.ws !== ws) return; net.ws = null; if (room.connected) soloRoom(); net.later(); };
+  ws.onerror = () => {};
+};
+net.later = function(){ clearTimeout(net.timer); net.timer = setTimeout(net.connect, net.retry); net.retry = Math.min(60000, net.retry * 2); };
+let lastChime = 0;
+function handle(m){
+  if (m.t === 'welcome') {
+    room.connected = true; room.meId = m.id; room.online = m.online; room.toasts = m.toasts; room.rounds = m.rounds; room.song = m.song || 0; room.perf = null;
+    room.guests.forEach(g => g.lab && g.lab.remove()); room.guests.clear();
+    m.roster.forEach(p => room.guests.set(p.id, p));
+    layoutRoom();
+    m.roster.forEach(p => { if (p.g === 3) setSlump(p, true); });
+    if (m.perf) startPerf(m.perf.id, m.perf.m, m.perf.left); else applyMusic();
+    if (room.perf) room.perf.cheers = m.perf.cheers;
+  } else if (!room.connected) return;
+  else if (m.t === 'join') {
+    room.guests.set(m.p.id, m.p); layoutRoom();
+    const n = performance.now(); if (n - lastChime > 4000 && !boss) { lastChime = n; snd.chime(); R()?.door(); }
+  }
+  else if (m.t === 'leave') { const g = room.guests.get(m.id); if (g) { if (g.lab) g.lab.remove(); room.guests.delete(m.id); R()?.sync(); updatePresence(); } }
+  else if (m.t === 'upd') {
+    const g = room.guests.get(m.id); if (!g) return;
+    if (m.s !== undefined) { g.s = m.s; if (m.id === room.meId) store('moyu_seat', m.s); renderGuest(g); R()?.sync(); return; }
+    if (m.id === room.meId) return;
+    if (m.l !== undefined && m.d === g.d && m.l < g.l) g.sipT0 = performance.now();
+    Object.assign(g, {a:m.a ?? g.a, n:m.n ?? g.n, d:m.d ?? g.d, l:m.l ?? g.l}); renderGuest(g);
+  }
+  else if (m.t === 'g') { room.toasts = m.toasts; if (room.perf && room.perf.id !== m.id && m.g <= 1) room.perf.cheers++; updatePresence(); if (m.id !== room.meId) showGesture(room.guests.get(m.id), m.g); }
+  else if (m.t === 'online') { room.online = m.n; updatePresence(); }
+  else if (m.t === 'round') { room.rounds = m.rounds; if (m.from === room.meId) { S.rounds++; save(); say('请客的人最有面子。账记你名下了。'); } receiveRound(m.from, m.drink); updatePresence(); }
+  else if (m.t === 'roundno') { say(m.why === 1 ? `刚有人请过，${m.s} 秒后再来。` : `你刚请过，还得等 ${m.s} 秒。钱包也需要冷静。`); }
+  else if (m.t === 'seatno') { say(m.why === 0 ? '那个位子刚被人坐了。' : '别换太勤，屁股还没坐热。'); }
+  else if (m.t === 'dice') { showDice(room.guests.get(m.id), m.v); }
+  else if (m.t === 'song') { applySong(m.id, m.m); }
+  else if (m.t === 'songno') { say(`这首刚点的，${m.s} 秒后才能换。`); }
+  else if (m.t === 'sing') { startPerf(m.id, m.m, m.left); }
+  else if (m.t === 'singend') { endPerf(m.id, m.cheers); }
+  else if (m.t === 'singno') { say(m.why === 0 ? `台上有人，还剩 ${m.s} 秒。` : `你刚唱过，嗓子歇 ${m.s} 秒。`); }
+}
+
+// ---------- audio (all synthesized, off by default) ----------
+const snd = (function(){
+  const A = { ac:null, on:false, vol:Object.assign({master:.8, murmur:.5, rain:.55, clinks:.45, pad:.5}, load('moyu_vol') || {}), g:{}, timers:[], lastClink:0, track:0, media:null, beatT:0, chordT:0 };
+  function noiseBuf(brown){
+    const ac = A.ac, len = ac.sampleRate * 3, b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; if (brown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w; }
+    return b;
+  }
+  function loop(buf){ const s = A.ac.createBufferSource(); s.buffer = buf; s.loop = true; s.start(); return s; }
+  function init(){
+    const ac = A.ac = new (window.AudioContext || window.webkitAudioContext)();
+    A.master = ac.createGain(); A.master.gain.value = A.vol.master; A.master.connect(ac.destination);
+    ['murmur','rain','clinks','pad'].forEach(k => { const g = ac.createGain(); g.gain.value = A.vol[k]; g.connect(A.master); A.g[k] = g; });
+    A.sfx = ac.createGain(); A.sfx.gain.value = .9; A.sfx.connect(A.master);
+    A.white = noiseBuf(false); A.brown = noiseBuf(true);
+    const src = loop(A.brown), amp = ac.createGain(); amp.gain.value = .55;
+    [[380,.9,.11,90],[1050,1.6,.17,260]].forEach(([f,q,r,depth]) => {
+      const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
+      const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = r; lg.gain.value = depth; lfo.connect(lg); lg.connect(bp.frequency); lfo.start();
+      src.connect(bp); bp.connect(amp);
+    });
+    const alfo = ac.createOscillator(), ag = ac.createGain(); alfo.frequency.value = .07; ag.gain.value = .2; alfo.connect(ag); ag.connect(amp.gain); alfo.start();
+    amp.connect(A.g.murmur);
+    const rs = loop(A.white), hp = ac.createBiquadFilter(), lp = ac.createBiquadFilter(), rg = ac.createGain();
+    hp.type = 'highpass'; hp.frequency.value = 900; lp.type = 'lowpass'; lp.frequency.value = 6500; rg.gain.value = .22;
+    rs.connect(hp); hp.connect(lp); lp.connect(rg); rg.connect(A.g.rain);
+    const rs2 = loop(A.brown), lp2 = ac.createBiquadFilter(), rg2 = ac.createGain(); lp2.type = 'lowpass'; lp2.frequency.value = 500; rg2.gain.value = .5;
+    rs2.connect(lp2); lp2.connect(rg2); rg2.connect(A.g.rain);
+    A.padF = ac.createBiquadFilter(); A.padF.type = 'lowpass'; A.padF.frequency.value = 1100; A.padF.connect(A.g.pad);
+  }
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  let ci = 0;
+  const T = () => TRACKS[A.track];
+  function chord(){
+    clearTimeout(A.chordT);
+    if (!A.on || boss || T().src) return;
+    const gen = T().gen, ac = A.ac, t = ac.currentTime, notes = gen.ch[ci++ % gen.ch.length], dur = gen.len;
+    A.padF.frequency.setValueAtTime(gen.cut, t);
+    notes.forEach((m, j) => {
+      const o = ac.createOscillator(), g = ac.createGain(); o.type = j === 0 ? 'sine' : gen.wave; o.frequency.value = hz(j === 0 ? m - 12 : m + 12); o.detune.value = (Math.random() - .5) * 8;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(j === 0 ? .16 : gen.vol, t + Math.min(1.2, dur / 4)); g.gain.linearRampToValueAtTime(0, t + dur + .8);
+      o.connect(g); g.connect(A.padF); o.start(t); o.stop(t + dur + 1);
+    });
+    for (let k = 0; k < gen.nk; k++) if (Math.random() < gen.keys) {
+      const m = pick(gen.scale) + 12, o = ac.createOscillator(), g = ac.createGain(), tt = t + .3 + Math.random() * (dur - .6);
+      o.type = 'sine'; o.frequency.value = hz(m); g.gain.setValueAtTime(0, tt); g.gain.linearRampToValueAtTime(.06, tt + .02); g.gain.exponentialRampToValueAtTime(.0001, tt + 2.2);
+      o.connect(g); g.connect(A.g.pad); o.start(tt); o.stop(tt + 2.3);
+    }
+    A.chordT = setTimeout(chord, dur * 1000);
+  }
+  // disco drums, scheduled with a short lookahead
+  let nextBeat = 0, beatN = 0;
+  function beat(){
+    if (!A.on || boss || T().src || !T().gen.bpm) return;
+    const ac = A.ac, spb = 60 / T().gen.bpm / 2;
+    if (nextBeat < ac.currentTime) nextBeat = ac.currentTime + .05;
+    while (nextBeat < ac.currentTime + .2) {
+      const t = nextBeat;
+      if (beatN % 2 === 0) { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(42, t + .14); g.gain.setValueAtTime(.5, t); g.gain.exponentialRampToValueAtTime(.001, t + .22); o.connect(g); g.connect(A.g.pad); o.start(t); o.stop(t + .25); }
+      else noise(t, 8000, .05, .12, 'highpass', A.g.pad);
+      nextBeat += spb; beatN++;
+    }
+  }
+  function noise(t, f, dur, vol, type, dest){
+    const ac = A.ac, s = ac.createBufferSource(), f1 = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = A.white; f1.type = type || 'bandpass'; f1.frequency.value = f; f1.Q.value = 1.2;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    s.connect(f1); f1.connect(g); g.connect(dest || A.sfx); s.start(t, Math.random()); s.stop(t + dur + .05);
+    return f1;
+  }
+  function clinkAt(dest, vol){
+    const ac = A.ac, t = ac.currentTime + .01, base = 2400 + Math.random() * 600;
+    [1, 1.5, 2.1, 2.9].forEach((k, j) => {
+      const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = base * k;
+      g.gain.setValueAtTime(vol / (j + 1), t); g.gain.exponentialRampToValueAtTime(.0001, t + .5 - j * .08);
+      o.connect(g); g.connect(dest); o.start(t); o.stop(t + .6);
+    });
+  }
+  function ambientClink(){
+    A.timers.push(setTimeout(() => { if (A.on && !boss) clinkAt(A.g.clinks, .12 + Math.random() * .1); ambientClink(); }, 5000 + Math.random() * 9000));
+  }
+  function startMedia(){
+    const src = T().src;
+    if (!src) return;
+    if (!A.media) { A.media = new Audio(); A.media.loop = true; A.media.addEventListener('error', () => { if (A.on && !boss && T().src === A.media.dataset.src) chord(); }); A.ac.createMediaElementSource(A.media).connect(A.g.pad); }
+    if (A.media.dataset.src !== src) { A.media.src = src; A.media.dataset.src = src; }
+    A.media.play().catch(() => chord());
+  }
+  const ok = () => A.on && !boss && A.ac;
+  return {
+    A,
+    musicOn: () => A.on && !boss && A.vol.pad > .02,
+    async toggle(){
+      if (!A.ac) init();
+      A.on = !A.on;
+      if (A.on) { await A.ac.resume(); A.master.gain.value = A.vol.master; this.playTrack(A.track, true); A.beatT = setInterval(beat, 60); ambientClink(); }
+      else { A.timers.forEach(t => clearTimeout(t)); A.timers = []; clearInterval(A.beatT); clearTimeout(A.chordT); if (A.media) A.media.pause(); A.ac.suspend(); }
+      return A.on;
+    },
+    playTrack(id, force){
+      if (id === A.track && !force) return;
+      A.track = id;
+      if (!A.ac || !A.on || boss) return;
+      if (A.media && !T().src) A.media.pause();
+      if (T().src) { clearTimeout(A.chordT); startMedia(); } else chord();
+    },
+    setVol(k, v){ A.vol[k] = v; store('moyu_vol', A.vol); if (!A.ac) return; (k === 'master' ? A.master : A.g[k]).gain.value = v; },
+    mute(){ if (!A.ac) return; A.master.gain.cancelScheduledValues(0); A.master.gain.value = 0; clearTimeout(A.chordT); if (A.media) A.media.pause(); A.ac.suspend(); },
+    unmute(){ if (!A.ac || !A.on) return; A.master.gain.value = A.vol.master; A.ac.resume(); this.playTrack(A.track, true); },
+    clinkThrottled(){ if (!ok()) return; const n = performance.now(); if (n - A.lastClink < 250) return; A.lastClink = n; clinkAt(A.sfx, .22); },
+    shake(){ if (!ok()) return; const t = A.ac.currentTime; for (let i = 0; i < 8; i++) noise(t + i * .15, 2600 + Math.random() * 800, .09, .5); },
+    rattle(){ if (!ok()) return; const t = A.ac.currentTime; for (let i = 0; i < 12; i++) noise(t + i * .07 + Math.random() * .03, 1800 + Math.random() * 2000, .04, .35); noise(t + .9, 900, .12, .4); },
+    pour(){ if (!ok()) return; const f = noise(A.ac.currentTime, 600, 1.5, .35); f.frequency.linearRampToValueAtTime(1400, A.ac.currentTime + 1.5); },
+    sip(){ if (!ok()) return; const ac = A.ac, t = ac.currentTime; noise(t, 500, .18, .5, 'lowpass');
+      const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(190, t); o.frequency.exponentialRampToValueAtTime(80, t + .16);
+      g.gain.setValueAtTime(.25, t); g.gain.exponentialRampToValueAtTime(.0001, t + .2); o.connect(g); g.connect(A.sfx); o.start(t); o.stop(t + .25); },
+    chime(){ if (!ok()) return; const ac = A.ac, t = ac.currentTime + .02;
+      [[1318.5, 0], [1046.5, .28]].forEach(([f, d]) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = f; g.gain.setValueAtTime(.0001, t + d); g.gain.exponentialRampToValueAtTime(.08, t + d + .01); g.gain.exponentialRampToValueAtTime(.0001, t + d + 1.2); o.connect(g); g.connect(A.sfx); o.start(t + d); o.stop(t + d + 1.3); }); },
+    bell(){ if (!ok()) return; const ac = A.ac, t = ac.currentTime + .02;
+      [1, 2.0, 2.76, 4.07, 5.4].forEach((k, j) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = 880 * k;
+        g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.25 / (j + 1), t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + 2.6 - j * .3);
+        o.connect(g); g.connect(A.sfx); o.start(t); o.stop(t + 2.7); }); }
+  };
+})();
+
+// ---------- modals ----------
+let lastFocus = null;
+function openModal(id){ closeModals(true); lastFocus = document.activeElement; const m = $(id); m.hidden = false; const f = m.querySelector('.btn, .item:not(:disabled), button'); if (f) f.focus(); }
+function closeModals(keepFocus){
+  let any = false; document.querySelectorAll('.modal').forEach(m => { if (!m.hidden) { m.hidden = true; any = true; } });
+  $('roundConfirm').hidden = true; pendingRound = -1;
+  if (any && !keepFocus && lastFocus && lastFocus.focus) lastFocus.focus();
+}
+const modalOpen = () => [...document.querySelectorAll('.modal')].some(m => !m.hidden);
+document.querySelectorAll('.modal').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-close]')) { if (m.id === 'enterModal' && e.target === m) return; closeModals(); } });
+});
+let menuMode = 'order';
+function openMenu(mode){
+  menuMode = mode;
+  const full = remaining() > 0;
+  $('menuH').textContent = mode === 'round' ? '请全场喝一轮' : '打工人特调';
+  $('menuNote').textContent = mode === 'round' ? '挑一杯，每人面前多一小杯，不影响他们手里那杯。' : full ? '杯里还有酒。先喝完，再点下一杯。' : '老陈手写的酒单。度数仅供参考，跟你的绩效一样。';
+  $('menuList').innerHTML = DRINKS.map((d, i) => `<button class="item" type="button" data-i="${i}" ${mode === 'order' && full ? 'disabled' : ''}><span class="sw" style="background:linear-gradient(to top,${d.c.join(',')})"></span><span><span class="nm">${d.n}</span><br><span class="ds">${d.ds}</span></span><span class="abv">${d.abv}°</span></button>`).join('');
+  openModal('menuModal');
+}
+$('menuList').addEventListener('click', e => { const b = e.target.closest('.item'); if (!b || b.disabled) return; const i = +b.dataset.i; if (menuMode === 'round') confirmRound(i); else order(i); });
+$('roundYes').addEventListener('click', doRound);
+$('roundNo').addEventListener('click', () => { $('roundConfirm').hidden = true; pendingRound = -1; });
+
+// ---------- nickname ----------
+function showNick(){ $('nickBtn').textContent = nickStr(me.a, me.n); $('enterName').textContent = $('nickName').textContent = nickStr(me.a, me.n); }
+let lastRoll = 0;
+function reroll(){
+  const now = Date.now(); if (now - lastRoll < 400) return; lastRoll = now;
+  me.a = rnd(LISTS.adj.length); me.n = rnd(LISTS.animal.length); me.c = rnd(COLORS.length); store('moyu_me', me); showNick();
+  net.send({t:'nick', a:me.a, n:me.n}); updateSelf();
+}
+$('enterRoll').addEventListener('click', reroll); $('nickRoll').addEventListener('click', reroll);
+$('enterGo').addEventListener('click', () => { store('moyu_me', me); closeModals(); say('欢迎光临，' + nickStr(me.a, me.n) + '。回车看酒单。'); });
+$('nickBtn').addEventListener('click', () => openModal('nickModal'));
+
+// ---------- sound panel ----------
+['master','murmur','rain','clinks','pad'].forEach(k => { const el = $('v_' + k); el.value = snd.A.vol[k]; el.addEventListener('input', () => snd.setVol(k, +el.value)); });
+$('soundBtn').addEventListener('click', () => openModal('soundModal'));
+$('soundToggle').addEventListener('click', async () => {
+  try { const on = await snd.toggle(); $('soundToggle').textContent = on ? '关掉声音' : '打开声音'; $('soundBtn').textContent = on ? '声音 开' : '声音 关'; $('soundBtn').classList.toggle('on', on); }
+  catch(e) { $('soundToggle').textContent = '这个浏览器放不了声音'; }
+});
+
+// ---------- buttons ----------
+$('sipBtn').addEventListener('click', sip);
+$('shotBtn').addEventListener('click', drinkShot);
+$('diceBtn').addEventListener('click', rollDice);
+$('menuBtn').addEventListener('click', () => openMenu('order'));
+$('roundBtn').addEventListener('click', () => openMenu('round'));
+$('songBtn').addEventListener('click', () => openSong('song'));
+$('singBtn').addEventListener('click', () => openSong('sing'));
+document.querySelectorAll('.gest[data-g]').forEach(b => b.addEventListener('click', () => gesture(+b.dataset.g)));
+
+// ---------- boss key ----------
+let savedTitle = document.title;
+function toggleBoss(){
+  boss = !boss;
+  if (boss) {
+    savedTitle = document.title; document.title = 'Q4数据汇总.xlsx';
+    $('tipModal').hidden = true;
+    snd.mute(); R()?.pause(); $('app').hidden = true; $('boss').hidden = false; $('xlGrid').focus({preventScroll:true});
+  } else {
+    document.title = savedTitle; $('boss').hidden = true; $('app').hidden = false; snd.unmute(); R()?.resume();
+    if (Math.random() < .5) say(pick(CHEN_BACK));
+  }
+}
+$('bossBtn').addEventListener('click', toggleBoss);
+function doubleTap(el){
+  let last = 0;
+  el.addEventListener('pointerup', () => { const n = performance.now(); if (n - last < 380) { last = 0; toggleBoss(); } else last = n; });
+  el.addEventListener('click', e => { if (e.detail === 0) toggleBoss(); });
+}
+doubleTap($('bossCorner'));
+
+document.addEventListener('keydown', e => {
+  const t = e.target, tag = t && t.tagName;
+  if (e.key === 'Escape') { e.preventDefault(); toggleBoss(); return; }
+  if (boss) return;
+  const field = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  if ((e.key === ' ' || e.code === 'Space') && !field && !modalOpen()) { e.preventDefault(); sip(); return; }
+  if (e.key === 'Enter' && !field && tag !== 'BUTTON' && !modalOpen()) { e.preventDefault(); openMenu('order'); }
+});
+
+// ---------- fake spreadsheet ----------
+(function buildSheet(){
+  let seed = 20261014; const r = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const cols = 'ABCDEFGHIJKLMNOP'.split(''), regions = ['华东','华南','华北','西南','华中','西北','东北'], prods = ['A线','B线','C线'];
+  const rows = [['区域','产品线','Q1','Q2','Q3','Q4','合计','同比','目标','完成率','备注']], kinds = ['h'];
+  const notes = ['','','','待复核','','口径调整','','含退货',''];
+  regions.forEach(rg => {
+    const st = rows.length;
+    prods.forEach(p => {
+      const q = [0,1,2,3].map(() => Math.round(800 + r() * 4200) * 10), sum = q.reduce((a, b) => a + b, 0), tgt = Math.round(sum * (0.9 + r() * .25) / 1000) * 1000;
+      rows.push([rg, p, ...q, sum, ((r() - .35) * 30).toFixed(1) + '%', tgt, (sum / tgt * 100).toFixed(1) + '%', notes[Math.floor(r() * notes.length)]]); kinds.push('');
+    });
+    const sub = [rg + ' 小计', '']; for (let c = 2; c <= 6; c++) sub.push(rows.slice(st).reduce((a, x) => a + x[c], 0));
+    const tg = rows.slice(st).reduce((a, x) => a + x[8], 0);
+    sub.push('', tg, (sub[6] / tg * 100).toFixed(1) + '%', ''); rows.push(sub); kinds.push('sub');
+  });
+  while (rows.length < 48) { rows.push([]); kinds.push(''); }
+  const fmt = v => typeof v === 'number' ? v.toLocaleString('zh-CN') : (v ?? '');
+  let h = '<table><thead><tr><th class="rn" id="xlCorner" title="双击返回"></th>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+  rows.forEach((row, i) => {
+    h += `<tr class="${kinds[i]}"><td class="rn">${i + 1}</td>`;
+    cols.forEach((c, j) => { const v = row[j]; h += `<td data-c="${j}" data-r="${i}" class="${typeof v === 'number' || /%$/.test(v || '') ? 'n' : ''}">${fmt(v)}</td>`; });
+    h += '</tr>';
+  });
+  $('xlGrid').innerHTML = h + '</tbody></table>';
+  const formula = (c, i, v) => {
+    const n = i + 1;
+    if (kinds[i] === 'sub' && c >= 2 && c <= 6) return `=SUBTOTAL(9,${cols[c]}${n - 3}:${cols[c]}${n - 1})`;
+    if (c === 6 && i > 0) return `=SUM(C${n}:F${n})`;
+    if (c === 9 && i > 0) return `=IFERROR(G${n}/I${n},0)`;
+    if (c === 7 && i > 0 && v) return `=G${n}/'2025'!G${n}-1`;
+    return fmt(v);
+  };
+  let sel = null;
+  $('xlGrid').addEventListener('click', e => {
+    const td = e.target.closest('td[data-c]'); if (!td) return;
+    if (sel) sel.classList.remove('sel'); sel = td; td.classList.add('sel');
+    const c = +td.dataset.c, i = +td.dataset.r, v = rows[i][c];
+    $('xlName').textContent = cols[c] + (i + 1); $('xlVal').textContent = formula(c, i, v);
+    $('xlStat').textContent = typeof v === 'number' ? `求和: ${fmt(v)}   计数: 1` : v ? '计数: 1' : '';
+  });
+  $('xlGrid').querySelector('td[data-c="6"][data-r="1"]').click();
+  doubleTap($('xlCorner'));
+})();
+
+// ---------- receipt ----------
+let receiptBlobURL = null, receiptCanvas = null;
+function drawReceipt(){
+  const W = 600, dpr = 2, list = S.drinks.length ? S.drinks : null;
+  const H = 830 + (list ? list.length : 1) * 34;
+  const cv = document.createElement('canvas'); cv.width = W * dpr; cv.height = H * dpr;
+  const x = cv.getContext('2d'); x.scale(dpr, dpr);
+  const F = '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif', M = 'ui-monospace,Menlo,Consolas,monospace';
+  x.fillStyle = '#2a1b14'; x.fillRect(0, 0, W, H);
+  x.fillStyle = '#fbf5e9'; x.beginPath(); x.moveTo(30, 14);
+  for (let i = 30; i <= 570; i += 18) x.lineTo(i + 9, i % 36 === 30 ? 24 : 14);
+  x.lineTo(570, H - 24); for (let i = 570; i >= 30; i -= 18) x.lineTo(i - 9, i % 36 === 30 ? H - 14 : H - 24); x.closePath(); x.fill();
+  const ink = '#2a1b14', soft = '#7a6250';
+  let y = 86;
+  const center = (t, f, c) => { x.font = f; x.fillStyle = c || ink; x.textAlign = 'center'; x.fillText(t, W / 2, y); x.textAlign = 'left'; };
+  const lr = (l, r, bold) => { x.font = (bold ? '700 ' : '') + '22px ' + F; x.fillStyle = ink; x.textAlign = 'left'; x.fillText(l, 66, y); x.textAlign = 'right'; x.fillText(r, W - 66, y); x.textAlign = 'left'; y += 34; };
+  const rule = () => { x.strokeStyle = soft; x.setLineDash([6, 6]); x.beginPath(); x.moveTo(60, y - 16); x.lineTo(W - 60, y - 16); x.stroke(); x.setLineDash([]); y += 14; };
+  center('摸鱼酒馆', '700 46px ' + F); y += 32;
+  center('MOYU BAR · 营业到你下班', '16px ' + M, soft); y += 44;
+  rule();
+  const d = new Date();
+  lr('日期', today() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'));
+  lr('客人', nickStr(me.a, me.n));
+  lr('座位', room.connected ? String((selfSeat() || {s:0}).s + 1).padStart(2, '0') + ' 号' : '包场');
+  rule();
+  if (list) list.forEach(i => lr(DRINKS[i].n, DRINKS[i].abv + '°')); else lr('今晚只喝了白开水', '0°');
+  rule();
+  lr('合计杯数', String(S.drinks.length), true);
+  lr('合计度数', S.abv + '°', true);
+  lr('干杯次数', String(S.toasts));
+  lr('请全场', S.rounds + ' 轮');
+  lr('被请', S.treated + ' 杯');
+  lr('上台献唱', S.sang + ' 次，收到举杯 ' + S.cheersGot + ' 次');
+  lr('微醺值', Math.round(S.tipsy) + ' / 100');
+  rule();
+  x.font = '18px ' + F; x.fillStyle = soft; x.fillText('老陈说：', 66, y); y += 34;
+  const v = VERDICT.find(([m]) => S.tipsy < m)[1];
+  x.font = '700 24px ' + F; x.fillStyle = ink;
+  let line = ''; for (const ch of '「' + v + '」') { if (x.measureText(line + ch).width > W - 132) { x.fillText(line, 66, y); y += 34; line = ''; } line += ch; }
+  x.fillText(line, 66, y); y += 40;
+  rule();
+  center('本单不报销 · 明天接着摸', '18px ' + F, soft); y += 30;
+  x.fillStyle = ink; let bx = 150; while (bx < 450) { const w = 1 + rnd(4); x.fillRect(bx, y, w, 50); bx += w + 1 + rnd(4); }
+  return cv;
+}
+$('billBtn').addEventListener('click', () => {
+  receiptCanvas = drawReceipt();
+  $('receiptImg').src = receiptCanvas.toDataURL('image/png');
+  $('saveNote').textContent = '没反应的话，长按或右键图片保存。';
+  openModal('billModal');
+  say(pick(['结账？今晚算我的，小票你留着。','小票拿好，回去可以当日报交。']));
+});
+$('saveBtn').addEventListener('click', () => {
+  if (!receiptCanvas) return;
+  receiptCanvas.toBlob(b => {
+    if (!b) return;
+    if (receiptBlobURL) URL.revokeObjectURL(receiptBlobURL);
+    receiptBlobURL = URL.createObjectURL(b);
+    const a = document.createElement('a'); a.href = receiptBlobURL; a.download = '摸鱼酒馆小票-' + today() + '.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    $('saveNote').textContent = '如果没有开始下载，长按或右键上面的图片保存。';
+  }, 'image/png');
+});
+
+// ---------- 请老板喝一杯 (optional tip QR; hidden entirely if the image is absent) ----------
+const TIP_SRC = 'tip.png'; // swap for a data: URI to inline it
+let tipOK = false;
+(function probeTip(){
+  const im = new Image();
+  im.onload = () => { tipOK = true; $('tipImg').src = TIP_SRC; $('tipOpt').hidden = false; $('tipLink').hidden = false; };
+  im.onerror = () => { tipOK = false; };
+  im.src = TIP_SRC;
+})();
+$('tipLink').addEventListener('click', () => { if (tipOK && !boss) openModal('tipModal'); });
+
+// ---------- start ----------
+showNick(); drawShot(); applyTipsy(); soloRoom(); save();
+if (firstVisit) openModal('enterModal');
+else setTimeout(() => say('又来了，' + nickStr(me.a, me.n) + '。老位置。'), 500);
+setTimeout(() => { $('hint').hidden = true; }, 15000);
+net.connect();
+</script>
+<script type="module" src="bar3d.js"></script>
