@@ -736,7 +736,7 @@ import * as THREE from './three.module.js';
 
   // Drink glass & shot glass & dice cup shared geometries
   const glassShellGeo = new THREE.CylinderGeometry(0.085, 0.065, 0.21, 10, 1, true);
-  const glassShellMat = stdMat(0xe8f3fb, 0.12, 0.15, { transparent: true, opacity: 0.45, side: THREE.DoubleSide });
+  const glassShellMat = stdMat(0xf2f8ff, 0.12, 0.15, { transparent: true, opacity: 0.62, side: THREE.DoubleSide });
   const glassBaseGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.02, 10);
   const liquidGeo = new THREE.CylinderGeometry(0.074, 0.056, 0.17, 10);
   liquidGeo.translate(0, 0.085, 0);
@@ -780,6 +780,9 @@ import * as THREE from './three.module.js';
     armL.position.set(-0.18, 0.34, 0.02);
     const armR = new THREE.Mesh(armGeo, bodyMat);
     armR.position.set(0.18, 0.34, 0.02);
+    const handAnchor = new THREE.Object3D();
+    handAnchor.position.set(0, -0.30, 0);
+    armR.add(handAnchor);
     bodyPivot.add(armL, armR);
 
     const headPivot = new THREE.Group();
@@ -838,11 +841,12 @@ import * as THREE from './three.module.js';
 
     return {
       id: g.id, n: g.n, c: g.c, s: g.s,
-      root, bodyPivot, headPivot, armL, armR,
+      root, bodyPivot, headPivot, armL, armR, handAnchor,
       tableProps, glassGrp, liquid, shotGrp, diceCup, diceRow,
       curPos: new THREE.Vector3(),
       curRot: 0,
       lvl: g.d >= 0 ? g.l / SIPS : 0,
+      glassLift: 0,
       shotUntil: 0,
       sparkT0: 0,
       inited: false,
@@ -1051,6 +1055,7 @@ import * as THREE from './three.module.js';
   // ---------- render loop ----------
   let running = true, rafId = 0, lastT = performance.now();
   const projV = new THREE.Vector3();
+  const handWorldV = new THREE.Vector3();
 
   function tick(now) {
     if (!running) return;
@@ -1187,7 +1192,7 @@ import * as THREE from './three.module.js';
       const slumped = g.slumpUntil && now < g.slumpUntil;
       let bodyRx = 0, bodyPy = 0, headRx = 0, headRz = 0;
       let armRx = -0.25, armRz = 0, armRy = 0.34, armLx = -0.25, armLz = 0, armLy = 0.34;
-      let glX = 0, glY = 0, glZ = 0, glRx = 0;
+      let targetLift = 0, glRx = 0, needSparks = false;
 
       if (slumped) {
         bodyRx = 0.92;
@@ -1206,52 +1211,44 @@ import * as THREE from './three.module.js';
         armRy = 0.44;
         armLy = 0.4;
       } else if (g.sipT0 && now - g.sipT0 < 1450) {
-        // 喝一口：右臂扬起并将酒杯凑到嘴边倾斜仰饮
+        // 喝一口：右臂举杯凑到嘴边倾斜仰饮，酒杯紧贴右手端
         const k = plateau(Math.max(0, now - g.sipT0) / 1450, 0.2, 0.28);
         armRx = -0.25 - k * 2.05;
-        armRz = k * 0.58;
-        armRy = 0.34 + k * 0.16;
-        headRx = -k * 0.52;
-        bodyRx = -k * 0.1;
-        glX = k * 0.28;
-        glY = k * 0.34;
-        glZ = -k * 0.86;
+        armRz = k * 0.62;
+        armRy = 0.34 + k * 0.24;
+        headRx = -k * 0.44;
+        headRz = k * 0.16;
+        bodyRx = -k * 0.08;
+        targetLift = k;
         glRx = -k * 0.72;
       } else if (g.anim && now - g.anim.t0 < 2200) {
         const age = Math.max(0, now - g.anim.t0) / 2200;
         if (g.anim.k === 0) {
-          // 举杯：右手高举偏出轮廓线外，酒杯紧贴手端举过吧台
+          // 举杯：右手高举出轮廓线外，酒杯紧握在手里
           const env = plateau(age, 0.15, 0.25);
-          armRx = -0.25 - env * 2.3;
-          armRz = env * 0.85;
-          armRy = 0.34 + env * 0.22;
-          headRx = -env * 0.24;
+          armRx = -0.25 - env * 2.25;
+          armRz = env * 0.82;
+          armRy = 0.34 + env * 0.24;
+          headRx = -env * 0.22;
           bodyPy = env * 0.08;
-          glX = env * 0.44;
-          glY = env * 0.44;
-          glZ = -env * 0.82;
+          targetLift = env;
         } else if (g.anim.k === 1) {
-          // 干杯：双手举起晃动敬酒 + 举杯处金色火花
+          // 干杯：双手举起晃动敬酒，酒杯随右手晃动并在杯口触发金色火花
           const env = plateau(age, 0.14, 0.24);
           const bounce = Math.sin(age * Math.PI * 6) * 0.14 * env;
-          armRx = -0.25 - env * 2.25 + bounce;
-          armRz = env * 0.82;
-          armRy = 0.34 + env * 0.22;
+          armRx = -0.25 - env * 2.20 + bounce;
+          armRz = env * 0.78 + bounce * 0.18;
+          armRy = 0.34 + env * 0.24;
           armLx = -0.25 - env * 1.75;
-          armLz = -env * 0.68;
-          armLy = 0.34 + env * 0.16;
+          armLz = -env * 0.65;
+          armLy = 0.34 + env * 0.18;
           headRx = -env * 0.22;
           bodyPy = Math.abs(Math.sin(age * Math.PI * 3)) * 0.08 * env;
-          glX = env * 0.42;
-          glY = env * 0.46 + bounce * 0.12;
-          glZ = -env * 0.8;
+          targetLift = env;
           glRx = -env * 0.18;
-          if (rig.sparkT0 !== g.anim.t0) {
+          if (rig.sparkT0 !== g.anim.t0 && env > 0.85) {
             rig.sparkT0 = g.anim.t0;
-            const sp = new THREE.Vector3(0.42, 0.58, -0.8);
-            rig.tableProps.updateMatrixWorld(true);
-            rig.tableProps.localToWorld(sp);
-            spawnToastSparks(sp);
+            needSparks = true;
           }
         } else if (g.anim.k === 2) {
           // 叹气：低头垂肩长叹
@@ -1282,8 +1279,24 @@ import * as THREE from './three.module.js';
       rig.armL.rotation.x += (armLx - rig.armL.rotation.x) * easePose;
       rig.armL.rotation.z += (armLz - rig.armL.rotation.z) * easePose;
       rig.armL.position.y += (armLy - rig.armL.position.y) * easePose;
-      rig.glassGrp.position.set(glX, glY, glZ);
-      rig.glassGrp.rotation.x = glRx;
+      rig.glassLift += (Math.min(1, targetLift * 1.25) - rig.glassLift) * Math.min(1, easePose * 1.4);
+
+      if (rig.glassLift > 0.005) {
+        rig.root.updateMatrixWorld(true);
+        rig.tableProps.updateMatrixWorld(true);
+        rig.handAnchor.getWorldPosition(handWorldV);
+        if (needSparks) spawnToastSparks(handWorldV.clone().add(new THREE.Vector3(0, 0.12, 0)));
+        rig.tableProps.worldToLocal(handWorldV);
+        handWorldV.y -= 0.07;
+        rig.glassGrp.position.set(
+          handWorldV.x * rig.glassLift,
+          handWorldV.y * rig.glassLift,
+          handWorldV.z * rig.glassLift
+        );
+      } else {
+        rig.glassGrp.position.set(0, 0, 0);
+      }
+      rig.glassGrp.rotation.x = glRx * rig.glassLift;
 
       // Project 3D head position -> 2D DOM label
       if (g.lab) {
