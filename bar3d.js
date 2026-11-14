@@ -608,8 +608,8 @@ import * as THREE from './three.module.js';
   // Head main sphere uses guest's color; faceMesh merges eyes, ears, snout/beak with vertexColors.
   const headSphereGeo = new THREE.SphereGeometry(0.25, 12, 10);
   const bodyGeo = new THREE.CylinderGeometry(0.14, 0.18, 0.38, 8);
-  const armGeo = new THREE.BoxGeometry(0.08, 0.28, 0.08);
-  armGeo.translate(0, -0.11, 0);
+  const armGeo = new THREE.BoxGeometry(0.085, 0.34, 0.085);
+  armGeo.translate(0, -0.14, 0);
 
   function buildAnimalFaceGeo(idx) {
     const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
@@ -844,7 +844,7 @@ import * as THREE from './three.module.js';
       curRot: 0,
       lvl: g.d >= 0 ? g.l / SIPS : 0,
       shotUntil: 0,
-      sparkUntil: 0,
+      sparkT0: 0,
       inited: false,
     };
   }
@@ -863,12 +863,24 @@ import * as THREE from './three.module.js';
   const particles = [];
   const orbGeo = new THREE.SphereGeometry(0.08, 8, 6);
   const orbMat = new THREE.MeshBasicMaterial({ color: 0xffd266 });
+  const sparkMat = new THREE.MeshBasicMaterial({ color: 0xffe484 });
   function spawnCheerOrb(fromPos) {
     const m = new THREE.Mesh(orbGeo, orbMat);
     m.position.copy(fromPos);
     m.position.y += 1.0;
     scene.add(m);
     particles.push({ m, t0: performance.now(), dur: 1100, p0: m.position.clone(), p1: STAGE_SPOT_WORLD.clone().add(new THREE.Vector3(0, 1.1, 0)) });
+  }
+  function spawnToastSparks(pos) {
+    for (let i = 0; i < 6; i++) {
+      const m = new THREE.Mesh(orbGeo, sparkMat);
+      m.scale.setScalar(0.55);
+      m.position.copy(pos);
+      scene.add(m);
+      const a = (i / 6) * Math.PI * 2;
+      const p1 = pos.clone().add(new THREE.Vector3(Math.cos(a) * 0.45, 0.35 + (i % 2) * 0.2, Math.sin(a) * 0.45));
+      particles.push({ m, t0: performance.now(), dur: 750, p0: pos.clone(), p1 });
+    }
   }
 
   // ---------- camera & input ----------
@@ -1043,7 +1055,7 @@ import * as THREE from './three.module.js';
   function tick(now) {
     if (!running) return;
     rafId = requestAnimationFrame(tick);
-    const dt = Math.min(0.08, (now - lastT) / 1000);
+    const dt = Math.max(0, Math.min(0.08, (now - lastT) / 1000));
     lastT = now;
 
     // 1. Rain streaks outside left window
@@ -1165,33 +1177,113 @@ import * as THREE from './three.module.js';
         rig.diceRow.visible = false;
       }
 
-      // Body gestures (slump, raise glass, toast, sigh, sip, sing)
+      // Body gestures (slump, raise glass, toast, sigh, sip, sing) & glass lifting
+      const plateau = (u, up = 0.16, dn = 0.25) => {
+        if (u <= 0 || u >= 1) return 0;
+        if (u < up) { const t = u / up; return t * t * (3 - 2 * t); }
+        if (u > 1 - dn) { const t = (1 - u) / dn; return t * t * (3 - 2 * t); }
+        return 1;
+      };
       const slumped = g.slumpUntil && now < g.slumpUntil;
-      let bodyRx = 0, headRx = 0, armRx = -0.25, armRz = 0;
+      let bodyRx = 0, bodyPy = 0, headRx = 0, headRz = 0;
+      let armRx = -0.25, armRz = 0, armRy = 0.34, armLx = -0.25, armLz = 0, armLy = 0.34;
+      let glX = 0, glY = 0, glZ = 0, glRx = 0;
+
       if (slumped) {
-        bodyRx = 0.72;
-        headRx = 0.35;
+        bodyRx = 0.92;
+        bodyPy = -0.05;
+        headRx = 0.42;
+        headRz = 0.24;
+        armRx = -1.25;
+        armLx = -1.25;
       } else if (onStage) {
         bodyRx = Math.sin(now * 0.005) * 0.08;
-        armRx = -1.15 + Math.sin(now * 0.01) * 0.18;
-      } else if (g.sipT0 && now - g.sipT0 < 550) {
-        const k = Math.sin(((now - g.sipT0) / 550) * Math.PI);
-        armRx = -0.25 - k * 1.15;
-        headRx = -k * 0.28;
-      } else if (g.anim && now - g.anim.t0 < 2000) {
-        const age = (now - g.anim.t0) / 2000;
-        const env = Math.sin(age * Math.PI);
-        if (g.anim.k === 0) { armRx = -0.25 - env * 1.45; headRx = -env * 0.15; }
-        else if (g.anim.k === 1) { armRx = -0.25 - env * 1.25; armRz = -env * 0.25; bodyRx = env * 0.12; }
-        else if (g.anim.k === 2) { headRx = env * 0.35; bodyRx = env * 0.18; }
+        bodyPy = Math.abs(Math.sin(now * 0.008)) * 0.05;
+        armRx = -1.45 + Math.sin(now * 0.01) * 0.25;
+        armRz = 0.45;
+        armLx = -0.8 + Math.cos(now * 0.01) * 0.22;
+        armLz = -0.4;
+        armRy = 0.44;
+        armLy = 0.4;
+      } else if (g.sipT0 && now - g.sipT0 < 1450) {
+        // 喝一口：右臂扬起并将酒杯凑到嘴边倾斜仰饮
+        const k = plateau(Math.max(0, now - g.sipT0) / 1450, 0.2, 0.28);
+        armRx = -0.25 - k * 2.05;
+        armRz = k * 0.58;
+        armRy = 0.34 + k * 0.16;
+        headRx = -k * 0.52;
+        bodyRx = -k * 0.1;
+        glX = k * 0.28;
+        glY = k * 0.34;
+        glZ = -k * 0.86;
+        glRx = -k * 0.72;
+      } else if (g.anim && now - g.anim.t0 < 2200) {
+        const age = Math.max(0, now - g.anim.t0) / 2200;
+        if (g.anim.k === 0) {
+          // 举杯：右手高举偏出轮廓线外，酒杯紧贴手端举过吧台
+          const env = plateau(age, 0.15, 0.25);
+          armRx = -0.25 - env * 2.3;
+          armRz = env * 0.85;
+          armRy = 0.34 + env * 0.22;
+          headRx = -env * 0.24;
+          bodyPy = env * 0.08;
+          glX = env * 0.44;
+          glY = env * 0.44;
+          glZ = -env * 0.82;
+        } else if (g.anim.k === 1) {
+          // 干杯：双手举起晃动敬酒 + 举杯处金色火花
+          const env = plateau(age, 0.14, 0.24);
+          const bounce = Math.sin(age * Math.PI * 6) * 0.14 * env;
+          armRx = -0.25 - env * 2.25 + bounce;
+          armRz = env * 0.82;
+          armRy = 0.34 + env * 0.22;
+          armLx = -0.25 - env * 1.75;
+          armLz = -env * 0.68;
+          armLy = 0.34 + env * 0.16;
+          headRx = -env * 0.22;
+          bodyPy = Math.abs(Math.sin(age * Math.PI * 3)) * 0.08 * env;
+          glX = env * 0.42;
+          glY = env * 0.46 + bounce * 0.12;
+          glZ = -env * 0.8;
+          glRx = -env * 0.18;
+          if (rig.sparkT0 !== g.anim.t0) {
+            rig.sparkT0 = g.anim.t0;
+            const sp = new THREE.Vector3(0.42, 0.58, -0.8);
+            rig.tableProps.updateMatrixWorld(true);
+            rig.tableProps.localToWorld(sp);
+            spawnToastSparks(sp);
+          }
+        } else if (g.anim.k === 2) {
+          // 叹气：低头垂肩长叹
+          const env = plateau(age, 0.2, 0.3);
+          headRx = env * 0.62;
+          bodyRx = env * 0.32;
+          bodyPy = -env * 0.07;
+          armRx = 0.18 * env;
+          armLx = 0.18 * env;
+          armRz = 0.28 * env;
+          armLz = -0.28 * env;
+          armRy = 0.34 - env * 0.05;
+          armLy = 0.34 - env * 0.05;
+        }
       } else {
         // Gentle idle breathing
         headRx = Math.sin(now * 0.0018 + g.id) * 0.04;
       }
-      rig.bodyPivot.rotation.x += (bodyRx - rig.bodyPivot.rotation.x) * 0.18;
-      rig.headPivot.rotation.x += (headRx - rig.headPivot.rotation.x) * 0.18;
-      rig.armR.rotation.x += (armRx - rig.armR.rotation.x) * 0.22;
-      rig.armR.rotation.z += (armRz - rig.armR.rotation.z) * 0.22;
+
+      const easePose = 1 - Math.exp(-18 * dt);
+      rig.bodyPivot.rotation.x += (bodyRx - rig.bodyPivot.rotation.x) * easePose;
+      rig.bodyPivot.position.y += (bodyPy - rig.bodyPivot.position.y) * easePose;
+      rig.headPivot.rotation.x += (headRx - rig.headPivot.rotation.x) * easePose;
+      rig.headPivot.rotation.z += (headRz - rig.headPivot.rotation.z) * easePose;
+      rig.armR.rotation.x += (armRx - rig.armR.rotation.x) * easePose;
+      rig.armR.rotation.z += (armRz - rig.armR.rotation.z) * easePose;
+      rig.armR.position.y += (armRy - rig.armR.position.y) * easePose;
+      rig.armL.rotation.x += (armLx - rig.armL.rotation.x) * easePose;
+      rig.armL.rotation.z += (armLz - rig.armL.rotation.z) * easePose;
+      rig.armL.position.y += (armLy - rig.armL.position.y) * easePose;
+      rig.glassGrp.position.set(glX, glY, glZ);
+      rig.glassGrp.rotation.x = glRx;
 
       // Project 3D head position -> 2D DOM label
       if (g.lab) {
@@ -1314,7 +1406,8 @@ import * as THREE from './three.module.js';
       if (yaw !== undefined) camYaw = yaw;
       if (pitch !== undefined) camPitch = pitch;
       if (dist !== undefined) camDist = dist;
-    }
+    },
+    _rig(id) { return guestNodes.get(id || room.meId); }
   };
 
   // Catch initial state that ran before deferred module loaded

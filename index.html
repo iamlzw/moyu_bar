@@ -545,7 +545,7 @@ function handle(m){
 
 // ---------- audio (all synthesized, off by default) ----------
 const snd = (function(){
-  const A = { ac:null, on:false, vol:Object.assign({master:.8, murmur:.5, rain:.55, clinks:.45, pad:.5}, load('moyu_vol') || {}), g:{}, timers:[], lastClink:0, track:0, media:null, beatT:0, chordT:0 };
+  const A = { ac:null, on:false, vol:Object.assign({master:.8, murmur:.08, rain:.14, clinks:.25, pad:.8}, load('moyu_vol_v2') || {}), g:{}, timers:[], lastClink:0, track:0, media:null, beatT:0, chordT:0 };
   function noiseBuf(brown){
     const ac = A.ac, len = ac.sampleRate * 3, b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0);
     let last = 0;
@@ -559,18 +559,18 @@ const snd = (function(){
     ['murmur','rain','clinks','pad'].forEach(k => { const g = ac.createGain(); g.gain.value = A.vol[k]; g.connect(A.master); A.g[k] = g; });
     A.sfx = ac.createGain(); A.sfx.gain.value = .9; A.sfx.connect(A.master);
     A.white = noiseBuf(false); A.brown = noiseBuf(true);
-    const src = loop(A.brown), amp = ac.createGain(); amp.gain.value = .55;
-    [[380,.9,.11,90],[1050,1.6,.17,260]].forEach(([f,q,r,depth]) => {
+    const src = loop(A.brown), amp = ac.createGain(); amp.gain.value = .12;
+    [[360,1.6,.09,60],[920,2.2,.13,140]].forEach(([f,q,r,depth]) => {
       const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
       const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = r; lg.gain.value = depth; lfo.connect(lg); lg.connect(bp.frequency); lfo.start();
       src.connect(bp); bp.connect(amp);
     });
-    const alfo = ac.createOscillator(), ag = ac.createGain(); alfo.frequency.value = .07; ag.gain.value = .2; alfo.connect(ag); ag.connect(amp.gain); alfo.start();
+    const alfo = ac.createOscillator(), ag = ac.createGain(); alfo.frequency.value = .07; ag.gain.value = .04; alfo.connect(ag); ag.connect(amp.gain); alfo.start();
     amp.connect(A.g.murmur);
     const rs = loop(A.white), hp = ac.createBiquadFilter(), lp = ac.createBiquadFilter(), rg = ac.createGain();
-    hp.type = 'highpass'; hp.frequency.value = 900; lp.type = 'lowpass'; lp.frequency.value = 6500; rg.gain.value = .22;
+    hp.type = 'highpass'; hp.frequency.value = 1000; lp.type = 'lowpass'; lp.frequency.value = 3800; rg.gain.value = .06;
     rs.connect(hp); hp.connect(lp); lp.connect(rg); rg.connect(A.g.rain);
-    const rs2 = loop(A.brown), lp2 = ac.createBiquadFilter(), rg2 = ac.createGain(); lp2.type = 'lowpass'; lp2.frequency.value = 500; rg2.gain.value = .5;
+    const rs2 = loop(A.brown), lp2 = ac.createBiquadFilter(), rg2 = ac.createGain(); lp2.type = 'lowpass'; lp2.frequency.value = 380; rg2.gain.value = .14;
     rs2.connect(lp2); lp2.connect(rg2); rg2.connect(A.g.rain);
     A.padF = ac.createBiquadFilter(); A.padF.type = 'lowpass'; A.padF.frequency.value = 1100; A.padF.connect(A.g.pad);
   }
@@ -623,7 +623,7 @@ const snd = (function(){
     });
   }
   function ambientClink(){
-    A.timers.push(setTimeout(() => { if (A.on && !boss) clinkAt(A.g.clinks, .12 + Math.random() * .1); ambientClink(); }, 5000 + Math.random() * 9000));
+    A.timers.push(setTimeout(() => { if (A.on && !boss) clinkAt(A.g.clinks, .07 + Math.random() * .06); ambientClink(); }, 10000 + Math.random() * 14000));
   }
   function startMedia(){
     const src = T().src;
@@ -650,7 +650,7 @@ const snd = (function(){
       if (A.media && !T().src) A.media.pause();
       if (T().src) { clearTimeout(A.chordT); startMedia(); } else chord();
     },
-    setVol(k, v){ A.vol[k] = v; store('moyu_vol', A.vol); if (!A.ac) return; (k === 'master' ? A.master : A.g[k]).gain.value = v; },
+    setVol(k, v){ A.vol[k] = v; store('moyu_vol_v2', A.vol); if (!A.ac) return; (k === 'master' ? A.master : A.g[k]).gain.value = v; },
     mute(){ if (!A.ac) return; A.master.gain.cancelScheduledValues(0); A.master.gain.value = 0; clearTimeout(A.chordT); if (A.media) A.media.pause(); A.ac.suspend(); },
     unmute(){ if (!A.ac || !A.on) return; A.master.gain.value = A.vol.master; A.ac.resume(); this.playTrack(A.track, true); },
     clinkThrottled(){ if (!ok()) return; const n = performance.now(); if (n - A.lastClink < 250) return; A.lastClink = n; clinkAt(A.sfx, .22); },
